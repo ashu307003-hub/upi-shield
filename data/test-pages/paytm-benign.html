@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paytm Demo - RVS Test Dataset</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f7fb;
+            color: #1f2937;
+        }
+
+        header {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 18px 30px;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 30px;
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: #e8f5ff;
+            color: #0877bd;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .amount {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 25px 0;
+        }
+
+        .info {
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: #0b8ed1;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .notice {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    Paytm Demo Payment
+</header>
+
+<div class="container">
+
+    <span class="badge">RVS Controlled Benign Dataset</span>
+
+    <h1>Payment Summary</h1>
+
+    <div class="info">
+        <strong>Merchant:</strong> Demo Store
+    </div>
+
+    <div class="info">
+        <strong>Transaction Reference:</strong> DEMO-TXN-1001
+    </div>
+
+    <div class="amount">
+        ₹499.00
+    </div>
+
+    <button type="button" onclick="showDemoMessage()">
+        Continue to Demo
+    </button>
+
+    <div class="notice">
+        This is a synthetic test page created exclusively
+        for the RVS UPI Shield evaluation dataset.
+        No real payment, authentication, or credential
+        collection is performed.
+    </div>
+
+</div>
+
+<script>
+function showDemoMessage() {
+    alert("Synthetic demo only. No real transaction is performed.");
+}
+</script>
+
+</body>
+</html>

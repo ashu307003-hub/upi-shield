@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SBI Demo - RVS Test Dataset</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f7fb;
+            color: #1f2937;
+        }
+
+        header {
+            background: white;
+            padding: 20px 30px;
+            border-bottom: 1px solid #dbe4ef;
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 50px auto;
+            background: white;
+            padding: 32px;
+            border-radius: 14px;
+            box-shadow: 0 8px 28px rgba(0,0,0,.08);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: #e8f1ff;
+            color: #245da8;
+            font-size: 13px;
+        }
+
+        h1 { margin-top: 22px; }
+
+        .info {
+            padding: 16px;
+            margin: 14px 0;
+            background: #f8fafc;
+            border-radius: 10px;
+        }
+
+        .amount {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 28px 0;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: #1769aa;
+            color: white;
+            font-size: 16px;
+        }
+
+        .notice {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>SBI Demo Payment</header>
+
+<div class="container">
+
+    <span class="badge">RVS Controlled Benign Dataset</span>
+
+    <h1>Payment Summary</h1>
+
+    <div class="info">
+        <strong>Merchant:</strong> RVS Demo Services
+    </div>
+
+    <div class="info">
+        <strong>Reference:</strong> DEMO-SBI-4001
+    </div>
+
+    <div class="amount">₹750.00</div>
+
+    <button type="button" onclick="showDemoMessage()">
+        Continue to Demo
+    </button>
+
+    <div class="notice">
+        Synthetic security-testing page.
+        No banking credentials, OTPs, or real payments are collected.
+    </div>
+
+</div>
+
+<script>
+function showDemoMessage() {
+    alert("Synthetic demo only. No real transaction is performed.");
+}
+</script>
+
+</body>
+</html>

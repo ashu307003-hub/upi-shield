@@ -1,0 +1,9 @@
+url,brand,screenshot,dom,label
+http://127.0.0.1:8765/paytm-benign.html,paytm,data/captures/4c0fc135c095ea79.png,data/captures/4c0fc135c095ea79.html,benign
+http://127.0.0.1:8765/phonepe-benign.html,phonepe,data/captures/c106fff330653be6.png,data/captures/c106fff330653be6.html,benign
+http://127.0.0.1:8765/gpay-benign.html,gpay,data/captures/5b99a9196859cee5.png,data/captures/5b99a9196859cee5.html,benign
+http://127.0.0.1:8765/sbi-benign.html,sbi,data/captures/73f9c658f868aab3.png,data/captures/73f9c658f868aab3.html,benign
+http://127.0.0.1:8765/upi-payment-simulation.html,upi-simulation,data/captures/e3d7367017162583.png,data/captures/e3d7367017162583.html,phishing
+http://127.0.0.1:8765/upi-payment-variant.html,upi-simulation,data/captures/7f126955d9eda207.png,data/captures/7f126955d9eda207.html,phishing
+http://127.0.0.1:8765/upi-payment-variant2.html,upi-simulation,data/captures/c1d8664a530cb5e9.png,data/captures/c1d8664a530cb5e9.html,phishing
+http://127.0.0.1:8765/upi-payment-variant3.html,upi-simulation,data/captures/8a5a6383e8ff6a5e.png,data/captures/8a5a6383e8ff6a5e.html,phishing

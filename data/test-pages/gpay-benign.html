@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Pay Demo - RVS Test Dataset</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f8fafc;
+            color: #202124;
+        }
+
+        header {
+            background: white;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 21px;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 680px;
+            margin: 55px auto;
+            padding: 32px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 28px rgba(0,0,0,.08);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #eef4ff;
+            color: #315db5;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        h1 { margin-top: 22px; }
+
+        .row {
+            padding: 16px;
+            margin: 12px 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .amount {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 28px 0;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: #1a73e8;
+            color: white;
+            font-size: 16px;
+        }
+
+        .notice {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>Google Pay Demo</header>
+
+<div class="container">
+
+    <span class="badge">RVS Controlled Benign Dataset</span>
+
+    <h1>Demo Payment</h1>
+
+    <div class="row">
+        <strong>Merchant:</strong> RVS Demo Store
+    </div>
+
+    <div class="row">
+        <strong>Transaction:</strong> DEMO-GPAY-3001
+    </div>
+
+    <div class="amount">₹199.00</div>
+
+    <button type="button" onclick="showDemoMessage()">
+        Continue to Demo
+    </button>
+
+    <div class="notice">
+        This synthetic page is used only for defensive
+        security evaluation. No real transaction occurs.
+    </div>
+
+</div>
+
+<script>
+function showDemoMessage() {
+    alert("Synthetic demo only. No real transaction is performed.");
+}
+</script>
+
+</body>
+</html>
