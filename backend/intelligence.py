@@ -99,12 +99,37 @@ async def rdap_domain(host: str) -> dict:
         return {"error": str(exc)}
 
 
-async def analyze_domain(url: str) -> dict:
+async def analyze_domain(
+    url: str,
+    active_lookups: bool = False,
+) -> dict:
     host = _hostname(url)
     parsed = urlparse(url)
-    dns = await asyncio.to_thread(resolve_dns, host)
-    tls = await asyncio.to_thread(tls_certificate, host) if parsed.scheme == "https" and host else {}
-    rdap = await rdap_domain(host)
+
+    if active_lookups:
+        dns_task = asyncio.to_thread(resolve_dns, host)
+        rdap_task = rdap_domain(host)
+        if parsed.scheme == "https" and host:
+            dns, tls, rdap = await asyncio.gather(
+                dns_task,
+                asyncio.to_thread(tls_certificate, host),
+                rdap_task,
+            )
+        else:
+            dns, rdap = await asyncio.gather(
+                dns_task,
+                rdap_task,
+            )
+            tls = {}
+    else:
+        skipped = {
+            "skipped": True,
+            "reason": "target is not in the crawl allowlist",
+        }
+        dns = skipped.copy()
+        tls = skipped.copy()
+        rdap = skipped.copy()
+
     return {
         "hostname": host,
         "scheme": parsed.scheme,

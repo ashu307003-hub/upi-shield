@@ -3,7 +3,7 @@ from datetime import datetime
 import json
 
 from neo4j import AsyncGraphDatabase
-from sqlalchemy import DateTime, Float, Integer, JSON, String, Text, func, select
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, func, select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -40,6 +40,86 @@ neo4j_driver = AsyncGraphDatabase.driver(
 
 class Base(DeclarativeBase):
     pass
+
+
+# ============================================================
+# Analyst authentication
+# ============================================================
+
+class AnalystUser(Base):
+    __tablename__ = "analyst_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    full_name: Mapped[str] = mapped_column(String(120), default="")
+    mobile_number: Mapped[str] = mapped_column(String(16), default="")
+    is_verified: Mapped[bool] = mapped_column(default=False, index=True)
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    login_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("analyst_users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        index=True,
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
+class AnalystSession(Base):
+    __tablename__ = "analyst_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("analyst_users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        index=True,
+    )
+
+
+class ActivityEvent(Base):
+    __tablename__ = "activity_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("analyst_users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    event_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        index=True,
+    )
 
 
 # ============================================================
@@ -92,7 +172,7 @@ class DetectionRecord(Base):
         default=dict,
     )
 
-    created_at: Mapped[object] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         index=True,
@@ -212,6 +292,44 @@ async def init_db() -> None:
     async with engine.begin() as connection:
         await connection.run_sync(
             Base.metadata.create_all
+        )
+        await connection.run_sync(_migrate_analyst_user_columns)
+
+
+def _migrate_analyst_user_columns(connection) -> None:
+    from sqlalchemy import inspect
+
+    columns = {
+        column["name"]
+        for column in inspect(connection).get_columns("analyst_users")
+    }
+    additions = {
+        "full_name": "VARCHAR(120) NOT NULL DEFAULT ''",
+        "mobile_number": "VARCHAR(16) NOT NULL DEFAULT ''",
+        "is_verified": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "verified_at": "TIMESTAMP WITH TIME ZONE",
+        "login_count": "INTEGER NOT NULL DEFAULT 0",
+        "last_login_at": "TIMESTAMP WITH TIME ZONE",
+    }
+    added_verification_status = "is_verified" not in columns
+    for name, definition in additions.items():
+        if name not in columns:
+            connection.exec_driver_sql(
+                f'ALTER TABLE analyst_users ADD COLUMN "{name}" {definition}'
+            )
+    if added_verification_status:
+        connection.exec_driver_sql(
+            "UPDATE analyst_users SET is_verified = TRUE"
+        )
+
+    verification_columns = {
+        column["name"]
+        for column in inspect(connection).get_columns("email_verification_tokens")
+    }
+    if "issued_at" not in verification_columns:
+        connection.exec_driver_sql(
+            "ALTER TABLE email_verification_tokens ADD COLUMN "
+            '"issued_at" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP'
         )
 
 

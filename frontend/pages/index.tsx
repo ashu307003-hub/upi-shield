@@ -2,7 +2,6 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
 
 type Detection = {
   id: number;
@@ -19,6 +18,7 @@ type Detection = {
 
 type Health = {
   status: string;
+  database_dialect?: string;
   services?: Record<string, boolean>;
 };
 
@@ -51,7 +51,7 @@ export default function Home() {
     setLoading(true);
     setError("");
 
-    fetch(`${API}/detections`)
+    fetch(`${API}/detections`, { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw Error(`API ${r.status}`);
         return r.json();
@@ -66,7 +66,9 @@ export default function Home() {
   setEvaluationError("");
 
   try {
-    const r = await fetch(`${API}/evaluation`);
+    const r = await fetch(`${API}/evaluation`, {
+      credentials: "include",
+    });
 
     if (!r.ok) {
       throw Error(`Evaluation API ${r.status}`);
@@ -182,9 +184,9 @@ export default function Home() {
     try {
       const r = await fetch(`${API}/captures`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
         },
         body: JSON.stringify({
           url,
@@ -242,9 +244,7 @@ export default function Home() {
     try {
       const r = await fetch(`${API}/analyze-upload`, {
         method: "POST",
-        headers: {
-          "X-API-Key": API_KEY,
-        },
+        credentials: "include",
         body: form,
       });
 
@@ -292,9 +292,7 @@ export default function Home() {
         `${API}/apps/inspect-upload`,
         {
           method: "POST",
-          headers: {
-            "X-API-Key": API_KEY,
-          },
+          credentials: "include",
           body: form,
         }
       );
@@ -415,12 +413,14 @@ export default function Home() {
           >
             {health?.status === "ok"
               ? "Online"
-              : "Checking"}
+              : health?.status === "degraded"
+                ? "Degraded"
+                : "Checking"}
           </div>
 
           <div className="stat-note">
-            PG{" "}
-            {health?.services?.postgres
+            {health?.database_dialect === "postgresql" ? "PG" : "DB"}{" "}
+            {health?.services?.database
               ? "✓"
               : "…"}{" "}
             · Neo4j{" "}

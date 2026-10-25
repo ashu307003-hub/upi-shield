@@ -4,9 +4,51 @@ import json
 from pathlib import Path
 from urllib.parse import urlparse
 
-from playwright.async_api import async_playwright
+from playwright.async_api import Browser, Playwright, async_playwright
 
 OUT = Path("data/captures")
+_playwright: Playwright | None = None
+_browser: Browser | None = None
+_browser_lock = asyncio.Lock()
+
+
+async def _get_browser() -> Browser:
+    global _playwright, _browser
+
+    if _browser is not None and _browser.is_connected():
+        return _browser
+
+    async with _browser_lock:
+        if _browser is not None and _browser.is_connected():
+            return _browser
+
+        if _playwright is None:
+            _playwright = await async_playwright().start()
+
+        _browser = await _playwright.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+            ],
+        )
+
+        return _browser
+
+
+async def close_capture_browser() -> None:
+    global _playwright, _browser
+
+    browser, playwright = _browser, _playwright
+    _browser = None
+    _playwright = None
+
+    try:
+        if browser is not None:
+            await browser.close()
+    finally:
+        if playwright is not None:
+            await playwright.stop()
 
 
 async def capture(url: str, timeout_ms: int = 20000, output_dir: Path = OUT) -> dict:
@@ -19,9 +61,9 @@ async def capture(url: str, timeout_ms: int = 20000, output_dir: Path = OUT) -> 
     dom_path = output_dir / f"{url_id}.html"
     net_path = output_dir / f"{url_id}.json"
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage"])
-        ctx = await browser.new_context(viewport={"width": 1366, "height": 900}, locale="en-IN")
+    browser = await _get_browser()
+    ctx = await browser.new_context(viewport={"width": 1366, "height": 900}, locale="en-IN")
+    try:
         page = await ctx.new_page()
         requests_log: list[dict[str, str]] = []
         responses_log: list[dict[str, object]] = []
@@ -42,9 +84,10 @@ async def capture(url: str, timeout_ms: int = 20000, output_dir: Path = OUT) -> 
             })
         except Exception as error:
             result["error"] = str(error)
-        finally:
-            await browser.close()
-        return result
+    finally:
+        await ctx.close()
+
+    return result
 
 
 if __name__ == "__main__":

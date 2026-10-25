@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,8 +14,13 @@ class Settings(BaseSettings):
     smtp_port: int = 1025
     smtp_username: str = ""
     smtp_password: str = ""
+    smtp_starttls: bool = False
+    smtp_use_ssl: bool = False
     report_from_email: str = "alerts@example.com"
     admin_api_key: str = ""
+    admin_emails: str = ""
+    frontend_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    activity_retention_days: int = Field(default=180, gt=0)
     crawl_allowlist: str = "127.0.0.1,localhost"
     phishing_threshold: float = 0.6
     suspicious_threshold: float = 0.35

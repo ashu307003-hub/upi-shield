@@ -6,9 +6,6 @@ const API =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:8000";
 
-const API_KEY =
-  process.env.NEXT_PUBLIC_API_KEY ?? "";
-
 type Detection = {
   id: number;
   url: string;
@@ -202,19 +199,13 @@ export default function Detail() {
     setGraphLoading(true);
 
     try {
-      const headers = API_KEY
-        ? {
-            "X-API-Key": API_KEY,
-          }
-        : undefined;
-
       const [graphResponse, campaignResponse] =
         await Promise.all([
           fetch(`${API}/graph`, {
-            headers,
+            credentials: "include",
           }),
           fetch(`${API}/graph/clusters`, {
-            headers,
+            credentials: "include",
           }),
         ]);
 
@@ -271,11 +262,7 @@ export default function Detail() {
     fetch(
       `${API}/detections/${router.query.id}`,
       {
-        headers: API_KEY
-          ? {
-              "X-API-Key": API_KEY,
-            }
-          : undefined,
+        credentials: "include",
       }
     )
       .then(async (r) => {
@@ -623,6 +610,7 @@ export default function Detail() {
                 <div className="screenshot-frame">
                   <img
                     src={`${API}/artifacts/${shot}`}
+                    crossOrigin="use-credentials"
                     alt="Captured website evidence"
                   />
                 </div>

@@ -76,11 +76,11 @@ export default function Graph() {
    */
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/graph`).then((response) =>
+      fetch(`${API}/graph`, { credentials: "include" }).then((response) =>
         response.json()
       ),
 
-      fetch(`${API}/graph/clusters`).then((response) =>
+      fetch(`${API}/graph/clusters`, { credentials: "include" }).then((response) =>
         response.json()
       ),
     ])
