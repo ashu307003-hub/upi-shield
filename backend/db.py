@@ -54,6 +54,24 @@ class AnalystUser(Base):
     password_hash: Mapped[str] = mapped_column(String(256))
     full_name: Mapped[str] = mapped_column(String(120), default="")
     mobile_number: Mapped[str] = mapped_column(String(16), default="")
+    account_type: Mapped[str] = mapped_column(
+        String(24),
+        nullable=False,
+        default="professional",
+    )
+    academic_session: Mapped[str] = mapped_column(String(40), default="")
+    institution: Mapped[str] = mapped_column(String(160), default="")
+    department: Mapped[str] = mapped_column(String(120), default="")
+    course: Mapped[str] = mapped_column(String(160), default="")
+    study_year: Mapped[str] = mapped_column(String(40), default="")
+    student_id_document: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+    )
+    employer: Mapped[str] = mapped_column(String(160), default="")
+    job_title: Mapped[str] = mapped_column(String(120), default="")
+    employment_type: Mapped[str] = mapped_column(String(60), default="")
+    employee_id: Mapped[str] = mapped_column(String(80), default="")
     is_verified: Mapped[bool] = mapped_column(default=False, index=True)
     verified_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
@@ -306,6 +324,17 @@ def _migrate_analyst_user_columns(connection) -> None:
     additions = {
         "full_name": "VARCHAR(120) NOT NULL DEFAULT ''",
         "mobile_number": "VARCHAR(16) NOT NULL DEFAULT ''",
+        "account_type": "VARCHAR(24) NOT NULL DEFAULT 'professional'",
+        "academic_session": "VARCHAR(40) NOT NULL DEFAULT ''",
+        "institution": "VARCHAR(160) NOT NULL DEFAULT ''",
+        "department": "VARCHAR(120) NOT NULL DEFAULT ''",
+        "course": "VARCHAR(160) NOT NULL DEFAULT ''",
+        "study_year": "VARCHAR(40) NOT NULL DEFAULT ''",
+        "student_id_document": "VARCHAR(80)",
+        "employer": "VARCHAR(160) NOT NULL DEFAULT ''",
+        "job_title": "VARCHAR(120) NOT NULL DEFAULT ''",
+        "employment_type": "VARCHAR(60) NOT NULL DEFAULT ''",
+        "employee_id": "VARCHAR(80) NOT NULL DEFAULT ''",
         "is_verified": "BOOLEAN NOT NULL DEFAULT FALSE",
         "verified_at": "TIMESTAMP WITH TIME ZONE",
         "login_count": "INTEGER NOT NULL DEFAULT 0",

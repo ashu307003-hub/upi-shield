@@ -1,7 +1,9 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from typing import Literal
+
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 
 class FindingStatus(StrEnum):
@@ -48,9 +50,18 @@ class CaptureRequest(BaseModel):
     brand_keywords: list[str] = Field(default_factory=list)
 
 
+class BrowserCheckRequest(BaseModel):
+    url: HttpUrl
+
+
+class QrCheckRequest(BaseModel):
+    payload: str = Field(min_length=1, max_length=4096)
+
+
 class AuthCredentials(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=12, max_length=128)
+    account_type: Literal["student", "professional"]
 
     @field_validator("email")
     @classmethod
@@ -74,6 +85,48 @@ class AuthCredentials(BaseModel):
 class RegisterRequest(AuthCredentials):
     full_name: str = Field(min_length=2, max_length=120)
     mobile_number: str = Field(min_length=8, max_length=16)
+    academic_session: str | None = Field(default=None, max_length=40)
+    institution: str | None = Field(default=None, max_length=160)
+    department: str | None = Field(default=None, max_length=120)
+    course: str | None = Field(default=None, max_length=160)
+    study_year: str | None = Field(default=None, max_length=40)
+    employer: str | None = Field(default=None, max_length=160)
+    job_title: str | None = Field(default=None, max_length=120)
+    employment_type: str | None = Field(default=None, max_length=60)
+    employee_id: str | None = Field(default=None, max_length=80)
+
+    @field_validator(
+        "academic_session",
+        "institution",
+        "department",
+        "course",
+        "study_year",
+        "employer",
+        "job_title",
+        "employment_type",
+        "employee_id",
+        mode="before",
+    )
+    @classmethod
+    def normalize_profile_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = str(value).strip()
+        if any(ord(character) < 32 for character in value):
+            raise ValueError("Profile details must not contain control characters")
+        return value or None
+
+    @model_validator(mode="after")
+    def validate_account_details(self):
+        required_fields = (
+            ("academic_session", "institution", "department", "course", "study_year")
+            if self.account_type == "student"
+            else ("employer", "department", "job_title", "employment_type", "employee_id")
+        )
+        if any(getattr(self, field) is None for field in required_fields):
+            account_label = "student" if self.account_type == "student" else "professional"
+            raise ValueError(f"Complete all required {account_label} profile details")
+        return self
 
     @field_validator("full_name")
     @classmethod
