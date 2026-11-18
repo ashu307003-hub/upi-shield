@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_starttls: bool = False
     smtp_use_ssl: bool = False
+    email_provider: Literal["smtp", "brevo"] = "smtp"
+    brevo_api_key: str = ""
     report_from_email: str = "alerts@example.com"
     admin_api_key: str = ""
     admin_emails: str = ""

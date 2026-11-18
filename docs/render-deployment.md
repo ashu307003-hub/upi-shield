@@ -18,14 +18,20 @@ Set these environment variables in the `upi-shield-api` service:
 
 - `FRONTEND_ORIGINS`: exact HTTPS origin of the deployed Next.js dashboard
 - `BROWSER_EXTENSION_ORIGINS`: comma-separated extension origins, if used
-- `SMTP_HOST`: SMTP server hostname
-- `SMTP_PORT`: normally `587`
-- `SMTP_USERNAME`: SMTP login
-- `SMTP_PASSWORD`: SMTP password or app-specific key
-- `SMTP_STARTTLS`: `true`
-- `SMTP_USE_SSL`: `false`
+- `EMAIL_PROVIDER`: `brevo` on Render Free; use `smtp` only where outbound SMTP is allowed
+- `BREVO_API_KEY`: Brevo API key (keep it secret)
 - `REPORT_FROM_EMAIL`: verified sender address
 - `ADMIN_EMAILS`: comma-separated verified admin addresses
+
+Render Free instances block outbound SMTP ports `25`, `465`, and `587`. For
+Brevo, create an API key, verify the sender address in Brevo, and set
+`EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and `REPORT_FROM_EMAIL`. The API sends
+through Brevo's HTTPS endpoint over port `443`. Do not use the Brevo SMTP key
+or Gmail App Password as `BREVO_API_KEY`.
+
+For local development or a paid host that permits SMTP, set
+`EMAIL_PROVIDER=smtp` and configure `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_STARTTLS`, and `SMTP_USE_SSL`.
 
 `DATABASE_URL` is supplied by Render from the PostgreSQL database. The backend
 converts standard `postgres://` and `postgresql://` URLs to the asyncpg driver.

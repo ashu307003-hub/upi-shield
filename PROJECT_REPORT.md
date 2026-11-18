@@ -155,8 +155,8 @@ admin dashboard and API.
 - **Neo4j 5:** graph observations and infrastructure relationships.
 - **Redis 7:** cache/queue infrastructure; a Celery scaffold is present.
 - **Mailpit:** local development email catcher.
-- **Brevo SMTP:** configured external email transport when valid provider
-  credentials and an authorized sender are present.
+- **Brevo email:** HTTPS transactional API for Render Free; SMTP remains
+  available for local development and hosts that allow outbound SMTP.
 
 ### High-level data flow
 

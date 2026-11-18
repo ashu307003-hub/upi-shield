@@ -26,6 +26,10 @@ services:
         value: "true"
       - key: SMTP_USE_SSL
         value: "false"
+      - key: EMAIL_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
       - key: REPORT_FROM_EMAIL
         sync: false
       - key: ADMIN_EMAILS

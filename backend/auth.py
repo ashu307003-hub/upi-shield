@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import html
 import secrets
 import time
 from email.message import EmailMessage
@@ -8,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import formataddr
 from smtplib import SMTP, SMTP_SSL
 
+import httpx
 from sqlalchemy import delete, select, update
 
 from .config import get_settings
@@ -67,6 +69,41 @@ def _hash_session_token(token: str) -> str:
 
 def _send_email(to_email: str, subject: str, body: str) -> None:
     settings = get_settings()
+    if settings.email_provider == "brevo":
+        if not settings.brevo_api_key:
+            raise RuntimeError("BREVO_API_KEY must be configured")
+        if not settings.report_from_email:
+            raise RuntimeError("REPORT_FROM_EMAIL must be configured")
+
+        payload = {
+            "sender": {"name": "UPI Shield", "email": settings.report_from_email},
+            "to": [{"email": to_email}],
+            "subject": subject,
+            "textContent": body,
+            "htmlContent": f"<pre>{html.escape(body)}</pre>",
+        }
+        try:
+            response = httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"api-key": settings.brevo_api_key},
+                json=payload,
+                timeout=15,
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as error:
+            status_code = (
+                error.response.status_code
+                if isinstance(error, httpx.HTTPStatusError)
+                else None
+            )
+            detail = (
+                f"Brevo email API returned HTTP {status_code}"
+                if status_code is not None
+                else "Brevo email API request failed"
+            )
+            raise RuntimeError(detail) from error
+        return
+
     if not settings.smtp_host or not settings.report_from_email:
         raise RuntimeError("SMTP_HOST and REPORT_FROM_EMAIL must be configured")
 

@@ -162,11 +162,11 @@ the API web service and PostgreSQL database.
 
 In Render, create a new Blueprint from this repository and review the environment
 variables. Set `FRONTEND_ORIGINS` to the exact HTTPS web-dashboard origin and
-set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`,
-`SMTP_STARTTLS`, `SMTP_USE_SSL`, and `REPORT_FROM_EMAIL` to working mail
-credentials. Registration verification, sign-in notifications, and password
-reset require SMTP. The first `FRONTEND_ORIGINS` entry is used for links sent
-by email, so it must be the reachable dashboard URL rather than `localhost`.
+set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, and `REPORT_FROM_EMAIL` to a
+verified Brevo sender. Render Free blocks outbound SMTP ports 25, 465, and 587,
+so the API uses Brevo's HTTPS endpoint over port 443. The first
+`FRONTEND_ORIGINS` entry is used for links sent by email, so it must be the
+reachable dashboard URL rather than `localhost`.
 Do not put secrets in source control.
 
 PostgreSQL is required. Neo4j and Redis can be omitted for an initial mobile
@@ -192,14 +192,11 @@ this APK publicly; a production release requires a private signing key and a
 secure distribution channel. Install it on a connected Android phone with
 `adb install -r` and that path, or copy the APK to the phone and open it.
 
-To send mail through Brevo instead of the local Mailpit inbox, create a Brevo
-account, verify a sender address, and get the SMTP login and SMTP key from the
-Brevo SMTP settings. Set `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=587`,
-`SMTP_USERNAME` to the Brevo SMTP login, `SMTP_PASSWORD` to the SMTP key,
-`SMTP_STARTTLS=true`, `SMTP_USE_SSL=false`, and `REPORT_FROM_EMAIL` to the
-verified sender address in `.env`. Restart the backend after changing these
-settings. Keep the SMTP key private; it is not the Brevo API key or account
-password.
+For local SMTP testing with Mailpit, keep `EMAIL_PROVIDER=smtp` and configure
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_STARTTLS`,
+and `SMTP_USE_SSL` as appropriate. For Render Free, use Brevo's API key rather
+than SMTP credentials; the Brevo API key is distinct from its SMTP key and
+account password.
 
 Accounts are stored in PostgreSQL, passwords are scrypt-hashed, and browser
 sessions use a seven-day HttpOnly cookie. Set `ADMIN_EMAILS` to a comma-separated

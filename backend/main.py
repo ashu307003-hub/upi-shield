@@ -540,7 +540,7 @@ async def register(request: Request) -> Response:
             status_code=503,
             detail=(
                 "Your account was created but confirmation email could not be "
-                "sent. Check SMTP configuration and request another email."
+                "sent. Check the email provider configuration and request another email."
             ),
         ) from error
 
@@ -694,7 +694,7 @@ async def resend_verification(
                 logger.exception("Confirmation email resend failed")
                 raise HTTPException(
                     status_code=503,
-                    detail="Confirmation email could not be sent. Check SMTP configuration.",
+                    detail="Confirmation email could not be sent. Check the email provider configuration.",
                 ) from error
 
     return {
@@ -750,7 +750,7 @@ async def login(
         )
         raise HTTPException(
             status_code=503,
-            detail="Sign-in notification could not be sent. Check SMTP configuration and retry.",
+            detail="Sign-in notification could not be sent. Check the email provider configuration and retry.",
         ) from error
 
     await record_login(user)
@@ -806,7 +806,7 @@ async def mobile_login(
         )
         raise HTTPException(
             status_code=503,
-            detail="Sign-in notification could not be sent. Check SMTP configuration and retry.",
+            detail="Sign-in notification could not be sent. Check the email provider configuration and retry.",
         ) from error
 
     await record_login(user)
