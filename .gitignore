@@ -11,8 +11,13 @@ frontend/.next/
 frontend/out/
 
 data/captures/
+data/private_ids/
 data/*.log
 data/uvicorn-debug*.log
+mobile/node_modules/
+mobile/.expo/
+mobile/android/
+mobile/*.apk
 
 *.db
 *.sqlite

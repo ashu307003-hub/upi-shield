@@ -6,9 +6,11 @@ Push the repository to GitHub, open the Render dashboard, choose **New > Bluepri
 and connect this repository. Render reads `render.yaml` and creates:
 
 - `upi-shield-api` as a Docker web service
+- `upi-shield-web` as a Next.js web service
 - `upi-shield-db` as PostgreSQL
 
-The API Dockerfile health check uses `/health`.
+The API Dockerfile health check uses `/health`. The website is built from
+`frontend/` and is configured to use the API's public URL.
 
 ## 2. Configure the API
 
@@ -39,18 +41,13 @@ https://<api-service>.onrender.com/health
 Confirm `database` and `postgres` are healthy. Then open `/docs` and verify the
 password reset routes are present.
 
-## 4. Deploy the dashboard
+## 4. Configure and verify the dashboard
 
-Create a separate Render web service for `frontend/`:
-
-- Root directory: `frontend`
-- Build command: `npm ci && npm run build`
-- Start command: `npm start`
-- Environment variable: `NEXT_PUBLIC_API_URL=https://<api-service>.onrender.com`
-
-Redeploy the dashboard whenever `NEXT_PUBLIC_API_URL` changes. Set
-`FRONTEND_ORIGINS` on the API to the exact dashboard origin, for example
-`https://upi-shield-web.onrender.com`.
+After Render creates both web services, copy the dashboard's public HTTPS
+origin into `FRONTEND_ORIGINS` on the API service and redeploy the API. The
+website service is configured with `NEXT_PUBLIC_API_URL`; if the API's public
+hostname differs from the value in `render.yaml`, update that variable and
+redeploy the website.
 
 ## 5. Configure clients
 

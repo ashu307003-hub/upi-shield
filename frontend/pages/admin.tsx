@@ -2,6 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "./_app";
+import { verdictLabel } from "../lib/presentation";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -66,7 +67,14 @@ function formatDate(value: string | null) {
 }
 
 function formatFeature(value: string) {
-  return value.replaceAll("_", " ");
+  const labels: Record<string, string> = {
+    email_verified: "Email confirmed",
+    login: "Signed in",
+    logout: "Signed out",
+    page_view: "Viewed a page",
+  };
+  const label = labels[value] ?? value.replaceAll("_", " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export default function Admin() {
@@ -110,9 +118,7 @@ export default function Admin() {
       .catch((loadError: unknown) => {
         if (!active) return;
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "Could not load admin data"
+          "We couldn’t load the admin information. Refresh the page and try again."
         );
       })
       .finally(() => {
@@ -127,13 +133,13 @@ export default function Admin() {
   if (!isAdmin) {
     return (
       <section className="admin-access-denied">
-        <div className="eyebrow">RESTRICTED WORKSPACE</div>
-        <h1>Admin access required</h1>
+        <div className="eyebrow">ADMIN AREA</div>
+        <h1>You can’t open this page</h1>
         <p>
-          This account is not on the configured admin email allowlist.
-          Contact your workspace administrator.
+          This page is only available to approved admin accounts. Contact the
+          person who manages your account if you need access.
         </p>
-        <Link href="/" className="button primary">Back to dashboard</Link>
+        <Link href="/" className="button primary">Back to website checks</Link>
       </section>
     );
   }
@@ -141,50 +147,50 @@ export default function Admin() {
   return (
     <>
       <Head>
-        <title>Admin overview · UPI Shield</title>
+        <title>Admin tools · UPI Shield</title>
       </Head>
       <div className="admin-page">
         <header className="page-header">
           <div>
-            <div className="eyebrow">WORKSPACE / ADMINISTRATION</div>
-            <h1>Admin overview</h1>
-            <p>Account growth, aggregate site visits, analyst activity, and stored evidence.</p>
+            <div className="eyebrow">ADMIN AREA</div>
+            <h1>Admin tools</h1>
+            <p>See account totals, sign-ins, website checks, and recent activity.</p>
           </div>
           <div className="admin-retention-badge">
             <span className="status-dot" />
-            Activity logs retained for {overview?.activity_retention_days ?? 180} days
+            Activity is saved for {overview?.activity_retention_days ?? 180} days
           </div>
         </header>
 
         {error && <div className="login-error" role="alert">{error}</div>}
-        {loading && <div className="panel admin-loading">Loading workspace activity…</div>}
+        {loading && <div className="panel admin-loading">Loading account and website activity…</div>}
 
         {!loading && overview && (
           <>
-            <section className="admin-metrics-grid" aria-label="Workspace metrics">
+            <section className="admin-metrics-grid" aria-label="Account and activity totals">
               <article className="admin-metric">
                 <span className="admin-metric-icon">◎</span>
-                <span className="admin-metric-label">REGISTERED ACCOUNTS</span>
+                <span className="admin-metric-label">ACCOUNTS</span>
                 <strong>{overview.accounts.total}</strong>
-                <small>{overview.accounts.verified} verified · {overview.accounts.pending_email_confirmation} pending</small>
+                <small>{overview.accounts.verified} email confirmed · {overview.accounts.pending_email_confirmation} waiting for confirmation</small>
               </article>
               <article className="admin-metric">
                 <span className="admin-metric-icon">↗</span>
-                <span className="admin-metric-label">SITE PAGE VIEWS</span>
+                <span className="admin-metric-label">PAGES VIEWED</span>
                 <strong>{overview.visits.page_views_in_retention_window}</strong>
-                <small>{overview.visits.page_views_last_30_days} in the last 30 days · aggregate only</small>
+                <small>{overview.visits.page_views_last_30_days} in the last 30 days · counts only</small>
               </article>
               <article className="admin-metric">
                 <span className="admin-metric-icon">⌁</span>
-                <span className="admin-metric-label">SUCCESSFUL SIGN-INS</span>
+                <span className="admin-metric-label">SIGN-INS</span>
                 <strong>{overview.logins_in_retention_window}</strong>
-                <small>Within the activity retention period</small>
+                <small>During the period activity is saved</small>
               </article>
               <article className="admin-metric">
                 <span className="admin-metric-icon">◈</span>
-                <span className="admin-metric-label">ANALYSIS RESULTS</span>
+                <span className="admin-metric-label">WEBSITE CHECKS</span>
                 <strong>{overview.detections_stored}</strong>
-                <small>URLs, score results, and evidence records</small>
+                <small>Saved results and screenshots</small>
               </article>
             </section>
 
@@ -192,8 +198,8 @@ export default function Admin() {
               <article className="panel admin-section">
                 <div className="admin-section-heading">
                   <div>
-                    <div className="eyebrow">ANALYST ACCESS</div>
-                    <h2>Registered accounts</h2>
+                    <div className="eyebrow">PEOPLE</div>
+                    <h2>Accounts</h2>
                   </div>
                   <span className="admin-count">{users.length} shown</span>
                 </div>
@@ -201,11 +207,11 @@ export default function Admin() {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>Analyst</th>
-                        <th>Mobile</th>
-                        <th>Account</th>
+                        <th>Name and email</th>
+                        <th>Phone</th>
+                        <th>Email status</th>
                         <th>Sign-ins</th>
-                        <th>Last seen</th>
+                        <th>Last sign-in</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -218,7 +224,7 @@ export default function Admin() {
                           <td>{user.mobile_number}</td>
                           <td>
                             <span className={`admin-status ${user.email_verified ? "verified" : "pending"}`}>
-                              {user.email_verified ? "Verified" : "Pending"}
+                              {user.email_verified ? "Confirmed" : "Not confirmed"}
                             </span>
                           </td>
                           <td>{user.login_count}</td>
@@ -226,7 +232,7 @@ export default function Admin() {
                         </tr>
                       ))}
                       {!users.length && (
-                        <tr><td colSpan={5} className="admin-empty-cell">No accounts registered yet.</td></tr>
+                        <tr>                        <td colSpan={5} className="admin-empty-cell">No accounts yet.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -236,13 +242,13 @@ export default function Admin() {
               <article className="panel admin-section">
                 <div className="admin-section-heading">
                   <div>
-                    <div className="eyebrow">ANALYTICS</div>
-                    <h2>Page views</h2>
+                    <div className="eyebrow">SITE ACTIVITY</div>
+                    <h2>Pages people visited</h2>
                   </div>
                   <span className="admin-count">180 days</span>
                 </div>
                 <p className="admin-privacy-note">
-                  Aggregate page counts only. Anonymous visitors are not fingerprinted and IP addresses are not recorded.
+                  We count page visits only. We do not identify visitors or save their IP addresses here.
                 </p>
                 <div className="admin-page-list">
                   {overview.visits.by_page.map((page) => (
@@ -256,7 +262,7 @@ export default function Admin() {
                   )}
                 </div>
                 <div className="admin-feature-list">
-                  <div className="eyebrow">FEATURE USE</div>
+                  <div className="eyebrow">TOOLS USED</div>
                   {overview.feature_usage.map((feature) => (
                     <div className="admin-page-row" key={feature.feature}>
                       <span>{formatFeature(feature.feature)}</span>
@@ -273,8 +279,8 @@ export default function Admin() {
             <section className="panel admin-section">
               <div className="admin-section-heading">
                 <div>
-                  <div className="eyebrow">PERSISTED EVIDENCE</div>
-                  <h2>Recent analysis results</h2>
+                    <div className="eyebrow">SAVED RESULTS</div>
+                    <h2>Recent website checks</h2>
                 </div>
                 <span className="admin-count">{detections.length} recent</span>
               </div>
@@ -290,27 +296,27 @@ export default function Admin() {
                       <img
                         src={`${API}${detection.screenshot_url}`}
                         crossOrigin="use-credentials"
-                        alt={`Captured evidence for ${detection.url}`}
+                        alt={`Website screenshot for ${detection.url}`}
                       />
                     </a>
                     <div className="admin-evidence-info">
                       <span className={`admin-status ${detection.verdict === "phishing" ? "pending" : "verified"}`}>
-                        {detection.verdict}
+                        {verdictLabel(detection.verdict)}
                       </span>
-                      <strong>Risk {Number(detection.score).toFixed(2)}</strong>
+                      <strong>Risk score: {(Number(detection.score) * 100).toFixed(0)}%</strong>
                       <a href={detection.url} target="_blank" rel="noreferrer">
                         {detection.url}
                       </a>
                       <small>{formatDate(detection.created_at)} · #{detection.id}</small>
                       <details className="admin-evidence-details">
-                        <summary>Analysis details</summary>
+                        <summary>More check details</summary>
                         <pre>{JSON.stringify(detection.evidence, null, 2)}</pre>
                       </details>
                     </div>
                   </article>
                 ))}
                 {!detections.length && (
-                  <div className="admin-empty-cell">No captured detection evidence yet.</div>
+                  <div className="admin-empty-cell">No website check screenshots yet.</div>
                 )}
               </div>
             </section>
@@ -318,8 +324,8 @@ export default function Admin() {
             <section className="panel admin-section">
               <div className="admin-section-heading">
                 <div>
-                  <div className="eyebrow">AUDIT TRAIL</div>
-                  <h2>Recent account and feature activity</h2>
+                  <div className="eyebrow">RECENT ACTIVITY</div>
+                  <h2>Recent account and tool activity</h2>
                 </div>
                 <span className="admin-count">{events.length} recent</span>
               </div>
@@ -333,8 +339,8 @@ export default function Admin() {
                         {event.user_name
                           ? `${event.user_name} · ${event.user_email}`
                           : event.event_type === "page_view"
-                            ? "Anonymous aggregate page view"
-                            : "Unlinked event"}
+                            ? "Page visit (counts only)"
+                              : "Activity not linked to an account"}
                       </span>
                       {!!event.details.url && (
                         <a href={String(event.details.url)} target="_blank" rel="noreferrer">
@@ -343,7 +349,7 @@ export default function Admin() {
                       )}
                       {!!Object.keys(event.details).length && (
                         <details className="admin-evidence-details">
-                          <summary>Event details</summary>
+                          <summary>More activity details</summary>
                           <pre>{JSON.stringify(event.details, null, 2)}</pre>
                         </details>
                       )}

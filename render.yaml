@@ -33,6 +33,17 @@ services:
       - key: CRAWL_ALLOWLIST
         value: 127.0.0.1,localhost
 
+  - type: web
+    name: upi-shield-web
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://upi-shield-api-egbl.onrender.com
+
 databases:
   - name: upi-shield-db
     plan: free

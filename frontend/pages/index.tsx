@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { verdictLabel } from "../lib/presentation";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -21,6 +22,25 @@ type Health = {
   database_dialect?: string;
   services?: Record<string, boolean>;
 };
+
+type ReportSection =
+  | "all"
+  | "summary"
+  | "checks"
+  | "brands"
+  | "evaluation"
+  | "connections";
+
+function isReportSection(value: string): value is ReportSection {
+  return [
+    "all",
+    "summary",
+    "checks",
+    "brands",
+    "evaluation",
+    "connections",
+  ].includes(value);
+}
 
 export default function Home() {
   const [detections, setDetections] = useState<Detection[]>([]);
@@ -46,6 +66,12 @@ export default function Home() {
   const [evaluation, setEvaluation] = useState<any | null>(null);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
   const [evaluationError, setEvaluationError] = useState("");
+  const [reportSection, setReportSection] = useState<ReportSection>("all");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportMessage, setReportMessage] = useState<{
+    text: string;
+    kind: "success" | "error";
+  } | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -57,7 +83,9 @@ export default function Home() {
         return r.json();
       })
       .then(setDetections)
-      .catch((e) => setError(e.message))
+      .catch(() =>
+        setError("We couldn’t load your website checks. Refresh the page and try again.")
+      )
       .finally(() => setLoading(false));
   };
 
@@ -78,9 +106,7 @@ export default function Home() {
     setEvaluation(data);
   } catch (e) {
     setEvaluationError(
-      e instanceof Error
-        ? e.message
-        : "Evaluation unavailable"
+      "We couldn’t load the test results. Please try again."
     );
   } finally {
     setEvaluationLoading(false);
@@ -208,16 +234,18 @@ export default function Home() {
       }
 
       setCaptureMessage(
-        `Captured: ${p.verdict} · risk ${Number(p.score).toFixed(
-          2
-        )} · detection #${p.id}`
+        `Check complete: ${verdictLabel(p.verdict)} · risk score ${(
+          Number(p.score) * 100
+        ).toFixed(0)}% · check #${p.id}`
       );
 
       setUrl("");
       load();
     } catch (e) {
       setCaptureMessage(
-        e instanceof Error ? e.message : "Capture failed"
+        e instanceof Error
+          ? e.message
+          : "We couldn’t check this website. Please try again."
       );
     } finally {
       setCaptureLoading(false);
@@ -228,7 +256,7 @@ export default function Home() {
     e.preventDefault();
 
     if (!analysisFile || !analysisUrl) {
-      setAnalysisMessage("Provide a URL and screenshot.");
+      setAnalysisMessage("Add the website address and choose a screenshot.");
       return;
     }
 
@@ -257,15 +285,17 @@ export default function Home() {
       }
 
       setAnalysisMessage(
-        `Analyzed: ${p.verdict} · risk ${Number(
-          p.score
-        ).toFixed(2)} · detection #${p.id}`
+        `Screenshot checked: ${verdictLabel(p.verdict)} · risk score ${(
+          Number(p.score) * 100
+        ).toFixed(0)}% · check #${p.id}`
       );
 
       load();
     } catch (e) {
       setAnalysisMessage(
-        e instanceof Error ? e.message : "Analysis failed"
+        e instanceof Error
+          ? e.message
+          : "We couldn’t check this screenshot. Please try again."
       );
     } finally {
       setAnalysisLoading(false);
@@ -280,7 +310,7 @@ export default function Home() {
     ) as HTMLInputElement | null;
 
     if (!input?.files?.[0]) {
-      setAnalysisMessage("Select an APK file first.");
+      setAnalysisMessage("Choose an Android app file first.");
       return;
     }
 
@@ -301,16 +331,71 @@ export default function Home() {
 
       setAnalysisMessage(
         r.ok
-          ? `APK: ${p.filename} · DEX ${p.dex_files} · native libs ${p.native_libraries} · suspicious permission markers ${p.suspicious_permission_markers?.length ?? 0
-          }`
-          : p.detail ?? "APK inspection failed"
+          ? `App file checked: ${p.filename}. Found ${p.dex_files} code files, ${p.native_libraries} additional components, and ${p.suspicious_permission_markers?.length ?? 0} permission warnings.`
+          : p.detail ?? "We couldn’t check this app file."
       );
     } catch (e) {
       setAnalysisMessage(
         e instanceof Error
           ? e.message
-          : "APK inspection failed"
+          : "We couldn’t check this app file. Please try again."
       );
+    }
+  }
+
+  async function downloadReport() {
+    setReportLoading(true);
+    setReportMessage(null);
+
+    try {
+      const response = await fetch(
+        `${API}/reports?section=${reportSection}`,
+        { credentials: "include" }
+      );
+
+      if (response.status === 401) {
+        throw new Error("Please sign in again to download a report.");
+      }
+      if (response.status === 503) {
+        throw new Error("Test results are not available right now.");
+      }
+      if (!response.ok) {
+        throw new Error("We couldn’t create that report. Please try again.");
+      }
+      if (!response.headers.get("content-type")?.includes("application/pdf")) {
+        throw new Error("We couldn’t create that report. Please try again.");
+      }
+
+      const report = await response.blob();
+      if (!report.size) {
+        throw new Error("The report is empty. Please try again.");
+      }
+
+      const downloadUrl = window.URL.createObjectURL(report);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `upi-shield-${reportSection}-${new Date()
+        .toISOString()
+        .slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 1000);
+
+      setReportMessage({
+        text: "Your report has been downloaded.",
+        kind: "success",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === "TypeError"
+          ? "We couldn’t connect to create the report. Check your connection and try again."
+          : error instanceof Error
+            ? error.message
+            : "We couldn’t create that report. Please try again.";
+      setReportMessage({ text: message, kind: "error" });
+    } finally {
+      setReportLoading(false);
     }
   }
 
@@ -323,15 +408,14 @@ export default function Home() {
       <header className="page-header">
         <div>
           <div className="eyebrow">
-            SECURITY OPERATIONS / TRIAGE
+            WEBSITE CHECKS
           </div>
 
-          <h1>UPI Shield</h1>
+          <h1>Check a website</h1>
 
           <p>
-            Detect, explain and investigate suspected
-            payment-brand abuse using multiple
-            independent signals.
+            Check a website or app file for warning signs. We’ll show you what
+            we found and why it may need attention.
           </p>
         </div>
 
@@ -340,17 +424,61 @@ export default function Home() {
             className="button"
             onClick={load}
           >
-            ↻ Refresh
+            ↻ Refresh checks
           </button>
 
           <Link
             href="/graph"
             className="button primary"
           >
-            Campaign graph →
+            Website connections →
           </Link>
         </div>
       </header>
+
+      <div className="report-actions">
+        <label className="report-select" htmlFor="report-section">
+          <span>Download a report</span>
+          <select
+            className="select"
+            id="report-section"
+            value={reportSection}
+            onChange={(event) => {
+              const section = event.target.value;
+              if (isReportSection(section)) setReportSection(section);
+            }}
+          >
+            <option value="all">Everything</option>
+            <option value="summary">Overview</option>
+            <option value="checks">Website checks</option>
+            <option value="brands">Brand results</option>
+            <option value="evaluation">Test results</option>
+            <option value="connections">Website connections</option>
+          </select>
+        </label>
+        <button
+          className="button primary"
+          disabled={reportLoading}
+          onClick={downloadReport}
+        >
+          {reportLoading
+            ? "Preparing report…"
+            : reportSection === "all"
+              ? "Download full report"
+              : "Download section report"}
+        </button>
+        <p className="report-hint">
+          For one website, open its check result to download its detailed report.
+        </p>
+        {reportMessage && (
+          <p
+            className={`report-message ${reportMessage.kind}`}
+            role={reportMessage.kind === "error" ? "alert" : "status"}
+          >
+            {reportMessage.text}
+          </p>
+        )}
+      </div>
 
       {/* ================================
           TOP STATISTICS
@@ -359,7 +487,7 @@ export default function Home() {
       <section className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">
-            OBSERVATIONS
+            WEBSITES CHECKED
           </div>
 
           <div className="stat-value">
@@ -367,13 +495,13 @@ export default function Home() {
           </div>
 
           <div className="stat-note">
-            Persisted in PostgreSQL
+            Saved checks
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-label">
-            HIGH RISK
+            LIKELY SCAMS
           </div>
 
           <div className="stat-value">
@@ -381,13 +509,13 @@ export default function Home() {
           </div>
 
           <div className="stat-note warning">
-            Phishing verdicts
+            May be pretending to be a trusted service
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-label">
-            NEEDS REVIEW
+            NEEDS A CLOSER LOOK
           </div>
 
           <div className="stat-value">
@@ -395,13 +523,13 @@ export default function Home() {
           </div>
 
           <div className="stat-note warning">
-            Suspicious verdicts
+            Some warning signs found
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-label">
-            PLATFORM
+            SYSTEM STATUS
           </div>
 
           <div
@@ -414,16 +542,16 @@ export default function Home() {
             {health?.status === "ok"
               ? "Online"
               : health?.status === "degraded"
-                ? "Degraded"
+                ? "Partly available"
                 : "Checking"}
           </div>
 
           <div className="stat-note">
-            {health?.database_dialect === "postgresql" ? "PG" : "DB"}{" "}
+            Saved data{" "}
             {health?.services?.database
               ? "✓"
               : "…"}{" "}
-            · Neo4j{" "}
+            · Website links{" "}
             {health?.services?.neo4j
               ? "✓"
               : "…"}
@@ -432,21 +560,21 @@ export default function Home() {
       </section>
 
       {/* ================================
-          THREAT INTELLIGENCE
+          CHECK RESULTS
           ================================ */}
 
       <section className="dashboard-grid">
         <div className="panel intelligence-card">
           <div className="eyebrow">
-            THREAT INTELLIGENCE
+            CHECK RESULTS
           </div>
 
-          <h2>Detection posture</h2>
+          <h2>What we found</h2>
 
           <div className="metric-list">
             <div className="metric-row">
               <span>
-                Phishing detections
+                Likely scams
               </span>
 
               <strong>{phishing}</strong>
@@ -454,7 +582,7 @@ export default function Home() {
 
             <div className="metric-row">
               <span>
-                Suspicious detections
+                Needs a closer look
               </span>
 
               <strong>{suspicious}</strong>
@@ -462,7 +590,7 @@ export default function Home() {
 
             <div className="metric-row">
               <span>
-                Benign observations
+                No clear warning signs
               </span>
 
               <strong>{benign}</strong>
@@ -470,11 +598,11 @@ export default function Home() {
 
             <div className="metric-row">
               <span>
-                Average risk
+                Average risk score
               </span>
 
               <strong>
-                {averageRisk.toFixed(2)}
+                {(averageRisk * 100).toFixed(0)}%
               </strong>
             </div>
           </div>
@@ -482,16 +610,16 @@ export default function Home() {
 
         <div className="panel intelligence-card">
           <div className="eyebrow">
-            ANALYST QUEUE
+            CHECK SUMMARY
           </div>
 
-          <h2>Priority breakdown</h2>
+          <h2>Checks by result</h2>
 
           <div className="risk-bars">
             <div className="risk-item">
               <div>
                 <span>
-                  Critical / Phishing
+                  Likely a scam
                 </span>
 
                 <strong>{phishing}</strong>
@@ -514,7 +642,7 @@ export default function Home() {
             <div className="risk-item">
               <div>
                 <span>
-                  Needs Review
+                  Needs a closer look
                 </span>
 
                 <strong>{suspicious}</strong>
@@ -536,7 +664,7 @@ export default function Home() {
 
             <div className="risk-item">
               <div>
-                <span>Benign</span>
+                <span>No clear warning signs</span>
 
                 <strong>{benign}</strong>
               </div>
@@ -565,15 +693,15 @@ export default function Home() {
       <section className="dashboard-grid intelligence-secondary">
         <div className="panel trend-card">
           <div className="eyebrow">
-            DETECTION ACTIVITY
+            RECENT CHECKS
           </div>
 
-          <h2>Recent risk activity</h2>
+          <h2>Recent check results</h2>
 
           <div className="trend-chart">
             {recentTrend.length === 0 ? (
               <div className="empty">
-                No detection activity yet.
+                No websites have been checked yet.
               </div>
             ) : (
               recentTrend.map((detection) => {
@@ -591,10 +719,9 @@ export default function Home() {
                     key={detection.id}
                     href={`/detail/${detection.id}`}
                     className={`trend-column ${detection.verdict}`}
-                    title={`Detection #${detection.id
-                      } · risk ${Number(
-                        detection.score
-                      ).toFixed(2)}`}
+                    title={`Check #${detection.id} · risk score ${(
+                      Number(detection.score) * 100
+                    ).toFixed(0)}%`}
                   >
                     <div
                       className="trend-bar"
@@ -604,9 +731,7 @@ export default function Home() {
                     />
 
                     <span className="trend-score">
-                      {Number(
-                        detection.score
-                      ).toFixed(2)}
+                      {(Number(detection.score) * 100).toFixed(0)}%
                     </span>
 
                     <small>
@@ -621,31 +746,31 @@ export default function Home() {
           <div className="trend-legend">
             <span>
               <i className="legend-risk phishing" />
-              Phishing
+              Likely a scam
             </span>
 
             <span>
               <i className="legend-risk suspicious" />
-              Suspicious
+              Needs a closer look
             </span>
 
             <span>
               <i className="legend-risk benign" />
-              Benign
+              No clear warning signs
             </span>
           </div>
         </div>
 
         <div className="panel brand-card">
           <div className="eyebrow">
-            BRAND INTELLIGENCE
+            BRANDS SEEN
           </div>
 
-          <h2>Most observed brands</h2>
+          <h2>Most common brands</h2>
 
           {brandStats.length === 0 ? (
             <div className="empty">
-              No brand intelligence available.
+              No brands found yet.
             </div>
           ) : (
             <div className="brand-list">
@@ -696,11 +821,11 @@ export default function Home() {
       <section className="panel evaluation-panel">
   <div className="evaluation-header">
     <div>
-      <div className="eyebrow">MODEL EVALUATION</div>
-      <h2>Detection engine performance</h2>
+      <div className="eyebrow">TEST RESULTS</div>
+      <h2>How well do the checks work?</h2>
       <p>
-        Quantitative evaluation against the labelled RVS
-        validation dataset.
+        These percentages show how the checks performed on a set of websites
+        with known results. They may differ from real-world results.
       </p>
     </div>
 
@@ -711,7 +836,7 @@ export default function Home() {
     >
       {evaluationLoading
         ? "Evaluating…"
-        : "Refresh metrics"}
+        : "Refresh test results"}
     </button>
   </div>
 
@@ -727,7 +852,7 @@ export default function Home() {
     <>
       <div className="evaluation-metrics">
         <div className="evaluation-metric">
-          <span>PRECISION</span>
+          <span title="How often a warning was correct">Accurate warnings</span>
           <strong>
             {(Number(
               evaluation.metrics?.precision ?? 0
@@ -736,7 +861,7 @@ export default function Home() {
         </div>
 
         <div className="evaluation-metric">
-          <span>RECALL</span>
+          <span title="How many known scam sites were found">Scams found</span>
           <strong>
             {(Number(
               evaluation.metrics?.recall ?? 0
@@ -745,7 +870,7 @@ export default function Home() {
         </div>
 
         <div className="evaluation-metric">
-          <span>F1 SCORE</span>
+          <span title="A combined measure of correct warnings and scams found">Overall score</span>
           <strong>
             {(Number(
               evaluation.metrics?.f1 ?? 0
@@ -754,7 +879,7 @@ export default function Home() {
         </div>
 
         <div className="evaluation-metric">
-          <span>FALSE POSITIVE RATE</span>
+          <span title="How often a safe site was flagged by mistake">False alarms</span>
           <strong>
             {(Number(
               evaluation.metrics?.false_positive_rate ?? 0
@@ -763,7 +888,7 @@ export default function Home() {
         </div>
 
         <div className="evaluation-metric">
-          <span>SPECIFICITY</span>
+          <span title="How often a safe site was correctly recognized">Safe sites recognized</span>
           <strong>
             {(Number(
               evaluation.metrics?.specificity ?? 0
@@ -772,7 +897,7 @@ export default function Home() {
         </div>
 
         <div className="evaluation-metric">
-          <span>AVG LATENCY</span>
+          <span title="Average time taken to check a website">Time to check</span>
           <strong>
             {Number(
               evaluation.latency?.average_ms ?? 0
@@ -785,26 +910,26 @@ export default function Home() {
       <div className="evaluation-bottom">
         <div className="confusion-card">
           <div className="eyebrow">
-            CONFUSION MATRIX
+            CHECK RESULTS TABLE
           </div>
 
           <div className="confusion-matrix">
             <div className="matrix-label" />
 
             <div className="matrix-heading">
-              Predicted Positive
+              Marked as a scam
             </div>
 
             <div className="matrix-heading">
-              Predicted Negative
+              Marked as safe
             </div>
 
             <div className="matrix-heading">
-              Actual Positive
+              Known scam
             </div>
 
             <div className="matrix-cell positive">
-              <span>TP</span>
+              <span>Correct warning</span>
               <strong>
                 {evaluation.confusion_matrix
                   ?.true_positive ?? 0}
@@ -812,7 +937,7 @@ export default function Home() {
             </div>
 
             <div className="matrix-cell negative">
-              <span>FN</span>
+              <span>Missed scam</span>
               <strong>
                 {evaluation.confusion_matrix
                   ?.false_negative ?? 0}
@@ -820,11 +945,11 @@ export default function Home() {
             </div>
 
             <div className="matrix-heading">
-              Actual Negative
+              Known safe
             </div>
 
             <div className="matrix-cell warning">
-              <span>FP</span>
+              <span>False alarm</span>
               <strong>
                 {evaluation.confusion_matrix
                   ?.false_positive ?? 0}
@@ -832,7 +957,7 @@ export default function Home() {
             </div>
 
             <div className="matrix-cell positive">
-              <span>TN</span>
+              <span>Correctly marked safe</span>
               <strong>
                 {evaluation.confusion_matrix
                   ?.true_negative ?? 0}
@@ -843,37 +968,35 @@ export default function Home() {
 
         <div className="evaluation-summary">
           <div className="eyebrow">
-            DATASET
+            TEST SET
           </div>
 
-          <h3>
-            {evaluation.dataset ?? "labels.csv"}
-          </h3>
+          <h3>Website test set</h3>
 
           <div className="evaluation-info">
             <div>
-              <span>Samples</span>
+              <span>Websites in test</span>
               <strong>
                 {evaluation.samples ?? 0}
               </strong>
             </div>
 
             <div>
-              <span>Evaluated</span>
+              <span>Checked</span>
               <strong>
                 {evaluation.evaluated ?? 0}
               </strong>
             </div>
 
             <div>
-              <span>Errors</span>
+              <span>Could not check</span>
               <strong>
                 {evaluation.errors_count ?? 0}
               </strong>
             </div>
 
             <div>
-              <span>Latency range</span>
+              <span>Check time range</span>
               <strong>
                 {Number(
                   evaluation.latency?.minimum_ms ?? 0
@@ -890,35 +1013,30 @@ export default function Home() {
       </div>
 
       <div className="evaluation-note">
-        <strong>Evaluation note:</strong>{" "}
-        Metrics are calculated from the currently
-        labelled dataset. Synthetic development
-        samples should not be presented as real-world
-        detection performance.
+        <strong>Please note:</strong>{" "}
+        These results come from the included test set. They are not a promise
+        that every scam or safe website will be identified correctly.
       </div>
     </>
   )}
 </section>
 
       {/* ================================
-          AUTHORIZED CRAWL
+          CHECK A WEBSITE
           ================================ */}
 
       <section className="panel analyzer-panel">
         <div className="eyebrow">
-          AUTHORIZED CRAWL
+          APPROVED WEBSITE CHECK
         </div>
 
         <h2>
-          Capture and score a test target
+          Check a website address
         </h2>
 
         <p>
-          Only crawl domains explicitly
-          present in{" "}
-          <code>CRAWL_ALLOWLIST</code>.
-          Use your local training page or
-          another authorized target.
+          Only websites approved by your administrator can be checked. Use a
+          practice website or another site you have permission to test.
         </p>
 
         <form
@@ -926,7 +1044,7 @@ export default function Home() {
           onSubmit={capture}
         >
           <label>
-            Target URL
+            Website address
 
             <input
               className="input"
@@ -941,7 +1059,7 @@ export default function Home() {
           </label>
 
           <label>
-            Brand keywords
+            Brand names or payment words
 
             <input
               className="input"
@@ -959,8 +1077,8 @@ export default function Home() {
             disabled={captureLoading}
           >
             {captureLoading
-              ? "Capturing…"
-              : "Capture + detect →"}
+              ? "Checking…"
+              : "Check website →"}
           </button>
         </form>
 
@@ -977,17 +1095,15 @@ export default function Home() {
 
       <section className="panel analyzer-panel">
         <div className="eyebrow">
-          ANALYST EVIDENCE
+          CHECK A SCREENSHOT
         </div>
 
         <h2>
-          Analyze an uploaded screenshot
+          Check a website screenshot
         </h2>
 
         <p>
-          Useful when the analyst has a
-          screenshot but must not crawl the
-          submitted URL.
+          Use this when you have a screenshot but can’t open the website here.
         </p>
 
         <form
@@ -995,7 +1111,7 @@ export default function Home() {
           onSubmit={analyze}
         >
           <label>
-            Website URL
+            Website address
 
             <input
               className="input"
@@ -1009,7 +1125,7 @@ export default function Home() {
           </label>
 
           <label>
-            Brand keywords
+            Brand names or payment words
 
             <input
               className="input"
@@ -1044,7 +1160,7 @@ export default function Home() {
           >
             {analysisLoading
               ? "Analyzing…"
-              : "Analyze screenshot →"}
+              : "Check screenshot →"}
           </button>
         </form>
 
@@ -1061,17 +1177,16 @@ export default function Home() {
 
       <section className="panel analyzer-panel">
         <div className="eyebrow">
-          APP INTELLIGENCE
+          CHECK AN ANDROID APP FILE
         </div>
 
         <h2>
-          Static APK inspection
+          Check an Android app file (.apk)
         </h2>
 
         <p>
-          Upload an APK for safe metadata
-          inspection only. The file is never
-          executed.
+          We check basic file details and warning signs. The app is not
+          installed or opened.
         </p>
 
         <form
@@ -1079,7 +1194,7 @@ export default function Home() {
           onSubmit={inspectApk}
         >
           <label>
-            APK file
+            Android app file (.apk)
 
             <input
               id="apk-upload"
@@ -1093,7 +1208,7 @@ export default function Home() {
           <div />
 
           <button className="button primary">
-            Inspect safely →
+            Check app file →
           </button>
         </form>
       </section>
@@ -1104,17 +1219,21 @@ export default function Home() {
 
       <section className="toolbar">
         <div>
-          <h2>Recent detections</h2>
+          <h2>Recent website checks</h2>
 
           <span className="stat-label">
-            {filtered.length} records
+            {filtered.length} checks
           </span>
+          <p className="profile-muted">
+            A higher risk score means more warning signs were found. It is not
+            proof that a website is a scam.
+          </p>
         </div>
 
         <div className="filters">
           <input
             className="input"
-            placeholder="Search URL or brand…"
+            placeholder="Search website or brand…"
             value={query}
             onChange={(e) =>
               setQuery(e.target.value)
@@ -1131,19 +1250,19 @@ export default function Home() {
             }
           >
             <option value="all">
-              All verdicts
+              All results
             </option>
 
             <option value="phishing">
-              Phishing
+              Likely a scam
             </option>
 
             <option value="suspicious">
-              Suspicious
+              Needs a closer look
             </option>
 
             <option value="benign">
-              Benign
+              No clear warning signs
             </option>
           </select>
         </div>
@@ -1152,7 +1271,7 @@ export default function Home() {
       <section className="panel table-wrap">
         {loading ? (
           <div className="empty">
-            Loading detection telemetry…
+            Loading website checks…
           </div>
         ) : error ? (
           <div className="error-box">
@@ -1160,18 +1279,17 @@ export default function Home() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="empty">
-            No detections yet. Run the local
-            simulation capture above.
+            No website checks yet. Check a website or screenshot above to get started.
           </div>
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>TARGET</th>
+                <th>WEBSITE</th>
                 <th>BRAND</th>
-                <th>RISK</th>
-                <th>VERDICT</th>
-                <th>EVIDENCE</th>
+                <th>RISK SCORE</th>
+                <th>RESULT</th>
+                <th>DETAILS</th>
               </tr>
             </thead>
 
@@ -1200,16 +1318,14 @@ export default function Home() {
                   </td>
 
                   <td className="score">
-                    {Number(
-                      d.score
-                    ).toFixed(2)}
+                    {(Number(d.score) * 100).toFixed(0)}%
                   </td>
 
                   <td>
                     <span
                       className={`badge ${d.verdict}`}
                     >
-                      {d.verdict}
+                      {verdictLabel(d.verdict)}
                     </span>
                   </td>
 
@@ -1218,7 +1334,7 @@ export default function Home() {
                       href={`/detail/${d.id}`}
                       className="stat-label"
                     >
-                      Investigate →
+                      See why →
                     </Link>
                   </td>
                 </tr>

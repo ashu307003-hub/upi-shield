@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
+import {
+  connectionReasonLabel,
+  verdictLabel,
+} from "../../lib/presentation";
 
 const API =
   process.env.NEXT_PUBLIC_API_URL ??
@@ -55,11 +59,59 @@ function percent(value: unknown) {
 }
 
 function score(value: unknown) {
-  return Number(value ?? 0).toFixed(2);
+  return `${(Number(value ?? 0) * 100).toFixed(0)}%`;
 }
 
 function boolLabel(value: unknown) {
-  return value ? "Detected" : "None";
+  return value ? "Yes" : "No";
+}
+
+function readableReason(reason: string) {
+  const labels: Record<string, string> = {
+    "Strong visual similarity to a known payment/financial brand":
+      "This page looks a lot like a known payment or finance brand.",
+    "Moderate visual similarity to a known payment/financial brand":
+      "This page looks somewhat like a known payment or finance brand.",
+    "Strong image embedding similarity detected":
+      "Images on this page closely match a known example.",
+    "Strong page layout similarity detected":
+      "The page layout closely matches a known example.",
+    "Brand text detected through OCR":
+      "This page uses text from a known brand.",
+    "Punycode hostname":
+      "The website address uses characters that could make it look like another address.",
+    "URL contains @":
+      "The website address contains an unusual @ symbol.",
+    "Multiple payment/security terms in URL":
+      "The website address includes several payment or security words.",
+    "Digit-heavy hostname":
+      "The website address contains many numbers.",
+    "Domain registered within 30 days":
+      "This website was created recently.",
+    "DNS resolution failed":
+      "We couldn’t find the server for this website.",
+    "Form submits data to an external origin":
+      "A form on this page sends information to another website.",
+    "Suspicious redirect behavior detected":
+      "This page may send visitors to another website unexpectedly.",
+    "Sensitive payment/authentication input detected":
+      "This page asks for sensitive sign-in or payment details.",
+    "Embedded iframe detected":
+      "This page includes content from another website.",
+    "External resources detected":
+      "This page loads files from other websites.",
+    "Visual resemblance was insufficient for confident brand attribution":
+      "The page looks similar to a brand, but we couldn’t confirm which one.",
+  };
+  if (labels[reason]) return labels[reason];
+  if (reason.startsWith("Threat-intelligence match detected")) {
+    return "This website appears on a list of known risky websites.";
+  }
+  const keywordMatch = reason.match(/^(\d+) payment\/brand keywords detected$/);
+  if (keywordMatch) {
+    return `We found ${keywordMatch[1]} payment or brand-related words on this page.`;
+  }
+  return reason;
 }
 
 function riskClass(verdict: string) {
@@ -103,11 +155,20 @@ function nodeDisplayName(node: GraphNode) {
 }
 
 function nodeDisplayType(node: GraphNode) {
-  return (
+  const type =
     node.type ??
     node.properties?.type ??
-    "Infrastructure"
-  );
+    "Website details";
+  const labels: Record<string, string> = {
+    domain: "Website",
+    ip: "Server address",
+    cert: "Security certificate",
+    certificate: "Security certificate",
+    asn: "Hosting provider",
+    upi: "Payment ID",
+    brand: "Brand",
+  };
+  return labels[String(type).toLowerCase()] ?? String(type).replaceAll("_", " ");
 }
 
 function campaignContainsHostname(
@@ -270,8 +331,9 @@ export default function Detail() {
 
         if (!r.ok) {
           throw Error(
-            p.detail ??
-              "Failed to load detection"
+            r.status === 404
+              ? "We couldn’t find this website check."
+              : "We couldn’t load this website check. Refresh the page and try again."
           );
         }
 
@@ -282,7 +344,7 @@ export default function Detail() {
         setErr(
           e instanceof Error
             ? e.message
-            : "Failed to load detection"
+            : "We couldn’t load this website check. Please try again."
         )
       );
   }, [router.query.id]);
@@ -452,16 +514,16 @@ export default function Detail() {
       <header className="page-header">
         <div>
           <div className="eyebrow">
-            INVESTIGATION / EVIDENCE
+            WEBSITE CHECK DETAILS
           </div>
 
           <h1>
-            Detection #{router.query.id}
+            Website check #{router.query.id}
           </h1>
 
           <p className="investigation-url">
             {d?.url ??
-              "Loading observation…"}
+              "Loading website details…"}
           </p>
         </div>
 
@@ -470,7 +532,7 @@ export default function Detail() {
             href="/"
             className="button"
           >
-            ← Back to queue
+            ← Back to website checks
           </Link>
 
           {d && (
@@ -480,7 +542,7 @@ export default function Detail() {
               target="_blank"
               rel="noreferrer"
             >
-              Generate evidence report
+              Download report
             </a>
           )}
         </div>
@@ -492,7 +554,7 @@ export default function Detail() {
         </div>
       ) : !d ? (
         <div className="empty">
-          Loading investigation evidence…
+          Loading check details…
         </div>
       ) : (
         <>
@@ -507,27 +569,27 @@ export default function Detail() {
               )}`}
             >
               <div className="eyebrow">
-                FINAL ASSESSMENT
+                CHECK RESULT
               </div>
 
               <div className="assessment-row">
                 <div>
                   <div className="assessment-verdict">
-                    {d.verdict.toUpperCase()}
+                    {verdictLabel(d.verdict)}
                   </div>
 
                   <div className="assessment-subtitle">
-                    Multi-signal detection assessment
+                    Based on several checks of this website.
                   </div>
                 </div>
 
                 <div className="assessment-score">
                   <strong>
-                    {d.score.toFixed(2)}
+                    {riskPercent}%
                   </strong>
 
                   <span>
-                    {riskPercent}% risk
+                    risk score
                   </span>
                 </div>
               </div>
@@ -550,7 +612,7 @@ export default function Detail() {
               </div>
 
               <div className="investigation-fact">
-                <span>PHASH DISTANCE</span>
+                <span title="A smaller number means the images are more alike.">IMAGE COMPARISON</span>
 
                 <strong>
                   {String(
@@ -562,7 +624,7 @@ export default function Detail() {
               </div>
 
               <div className="investigation-fact">
-                <span>OBSERVED</span>
+                <span>CHECKED</span>
 
                 <strong>
                   {d.created_at
@@ -574,7 +636,7 @@ export default function Detail() {
               </div>
 
               <div className="investigation-fact">
-                <span>SCHEME</span>
+                <span>CONNECTION TYPE</span>
 
                 <strong>
                   {domainIntel?.scheme ??
@@ -593,11 +655,11 @@ export default function Detail() {
               <div className="section-heading">
                 <div>
                   <div className="eyebrow">
-                    CAPTURED EVIDENCE
+                    WEBSITE SCREENSHOT
                   </div>
 
                   <h2>
-                    Rendered page
+                    Page we checked
                   </h2>
                 </div>
 
@@ -611,12 +673,12 @@ export default function Detail() {
                   <img
                     src={`${API}/artifacts/${shot}`}
                     crossOrigin="use-credentials"
-                    alt="Captured website evidence"
+                    alt="Website screenshot from this check"
                   />
                 </div>
               ) : (
                 <div className="capture-placeholder">
-                  No screenshot available
+                  No screenshot was saved for this check.
                 </div>
               )}
             </section>
@@ -625,11 +687,11 @@ export default function Detail() {
               <div className="section-heading">
                 <div>
                   <div className="eyebrow">
-                    VISUAL INTELLIGENCE
+                    PAGE APPEARANCE
                   </div>
 
                   <h2>
-                    Similarity analysis
+                    Does this look like a known brand?
                   </h2>
                 </div>
               </div>
@@ -637,7 +699,7 @@ export default function Detail() {
               <div className="visual-score-block">
                 <div>
                   <span>
-                    Combined similarity
+                    Overall visual match
                   </span>
 
                   <strong>
@@ -660,9 +722,14 @@ export default function Detail() {
                 </div>
               </div>
 
+              <p className="muted-note">
+                These checks compare the page with known brand examples. A
+                match is a clue, not proof.
+              </p>
+
               <div className="signal">
                 <span>
-                  Image embedding
+                  Image match
                 </span>
 
                 <strong>
@@ -674,7 +741,7 @@ export default function Detail() {
 
               <div className="signal">
                 <span>
-                  pHash similarity
+                  Known image match
                 </span>
 
                 <strong>
@@ -686,7 +753,7 @@ export default function Detail() {
 
               <div className="signal">
                 <span>
-                  Layout similarity
+                  Layout match
                 </span>
 
                 <strong>
@@ -698,7 +765,7 @@ export default function Detail() {
 
               <div className="signal">
                 <span>
-                  OCR brand match
+                  Brand text match
                 </span>
 
                 <strong>
@@ -710,7 +777,7 @@ export default function Detail() {
 
               <div className="signal">
                 <span>
-                  Reference images
+                  Known examples used
                 </span>
 
                 <strong>
@@ -721,7 +788,7 @@ export default function Detail() {
 
               <div className="signal">
                 <span>
-                  Detected brand
+                  Brand name found
                 </span>
 
                 <strong>
@@ -734,7 +801,7 @@ export default function Detail() {
               {visual.ocr_text ? (
                 <div className="ocr-box">
                   <div className="eyebrow">
-                    OCR OUTPUT
+                    TEXT FOUND ON PAGE
                   </div>
 
                   <div className="ocr-content">
@@ -743,8 +810,7 @@ export default function Detail() {
                 </div>
               ) : (
                 <div className="muted-note">
-                  No OCR text extracted from
-                  the captured page.
+                  No readable text was found in the screenshot.
                 </div>
               )}
             </section>
@@ -758,16 +824,20 @@ export default function Detail() {
             <div className="section-heading">
               <div>
                 <div className="eyebrow">
-                  RISK ENGINE
+                  WHY THIS RESULT?
                 </div>
 
                 <h2>
-                  Signal contribution
+                  What affected the result?
                 </h2>
+                <p className="section-description">
+                  We look at the page, how it behaves, and its website
+                  address. A risk score is a warning, not proof of a scam.
+                </p>
               </div>
 
               <span className="evidence-chip">
-                Explainable scoring
+                Page, behavior, and address checks
               </span>
             </div>
 
@@ -775,7 +845,7 @@ export default function Detail() {
               <div className="signal-card">
                 <div className="signal-card-header">
                   <span>
-                    Visual similarity
+                    Page appearance
                   </span>
 
                   <strong>
@@ -799,7 +869,7 @@ export default function Detail() {
               <div className="signal-card">
                 <div className="signal-card-header">
                   <span>
-                    Behavioral score
+                    Page behavior
                   </span>
 
                   <strong>
@@ -823,7 +893,7 @@ export default function Detail() {
               <div className="signal-card">
                 <div className="signal-card-header">
                   <span>
-                    Domain score
+                    Website address
                   </span>
 
                   <strong>
@@ -847,7 +917,7 @@ export default function Detail() {
               <div className="signal-card">
                 <div className="signal-card-header">
                   <span>
-                    Final risk
+                    Overall risk
                   </span>
 
                   <strong>
@@ -873,7 +943,7 @@ export default function Detail() {
               <div className="section-heading">
                 <div>
                   <div className="eyebrow">
-                    BEHAVIORAL ANALYSIS
+                    HOW THE PAGE BEHAVES
                   </div>
 
                   <h2>
@@ -885,7 +955,7 @@ export default function Detail() {
               <div className="behavior-grid">
                 <div className="behavior-item">
                   <span>
-                    External form action
+                    Sends form details to another website
                   </span>
 
                   <strong
@@ -903,7 +973,7 @@ export default function Detail() {
 
                 <div className="behavior-item">
                   <span>
-                    Suspicious redirect
+                    Sends visitors to another website unexpectedly
                   </span>
 
                   <strong
@@ -921,7 +991,7 @@ export default function Detail() {
 
                 <div className="behavior-item">
                   <span>
-                    Sensitive inputs
+                    Requests for private information
                   </span>
 
                   <strong
@@ -940,7 +1010,7 @@ export default function Detail() {
 
                 <div className="behavior-item">
                   <span>
-                    External form posts
+                    Forms sent to other websites
                   </span>
 
                   <strong
@@ -959,7 +1029,7 @@ export default function Detail() {
 
                 <div className="behavior-item">
                   <span>
-                    Iframes
+                    Embedded pages
                   </span>
 
                   <strong>
@@ -970,7 +1040,7 @@ export default function Detail() {
 
                 <div className="behavior-item">
                   <span>
-                    Scripts
+                    Background code files
                   </span>
 
                   <strong>
@@ -981,7 +1051,7 @@ export default function Detail() {
 
                 <div className="behavior-item">
                   <span>
-                    External resources
+                    Files loaded from other websites
                   </span>
 
                   <strong>
@@ -992,7 +1062,7 @@ export default function Detail() {
 
                 <div className="behavior-item">
                   <span>
-                    Brand keywords
+                    Payment or brand-related words
                   </span>
 
                   <strong>
@@ -1006,7 +1076,7 @@ export default function Detail() {
                 ?.length ? (
                 <div className="indicator-list">
                   <div className="eyebrow">
-                    SENSITIVE INPUTS
+                    PRIVATE INFORMATION REQUESTS
                   </div>
 
                   {behavioral.sensitive_inputs.map(
@@ -1029,7 +1099,7 @@ export default function Detail() {
                 ?.length ? (
                 <div className="indicator-list">
                   <div className="eyebrow">
-                    EXTERNAL FORM DESTINATIONS
+                    WEBSITES THAT RECEIVE FORM DETAILS
                   </div>
 
                   {behavioral.external_form_posts.map(
@@ -1053,11 +1123,11 @@ export default function Detail() {
               <div className="section-heading">
                 <div>
                   <div className="eyebrow">
-                    DETECTION EXPLANATION
+                    REASONS FOR THIS RESULT
                   </div>
 
                   <h2>
-                    Why this was flagged
+                    What we noticed
                   </h2>
                 </div>
               </div>
@@ -1078,7 +1148,7 @@ export default function Detail() {
                         </span>
 
                         <p>
-                          {reason}
+                          {readableReason(reason)}
                         </p>
                       </div>
                     )
@@ -1086,8 +1156,7 @@ export default function Detail() {
                 </div>
               ) : (
                 <div className="empty">
-                  No detection reasons
-                  recorded.
+                  No specific warning signs were recorded.
                 </div>
               )}
 
@@ -1098,25 +1167,25 @@ export default function Detail() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Generate evidence report →
+                  Download report →
                 </a>
               </div>
             </section>
           </div>
 
           {/* =====================================================
-              DOMAIN INTELLIGENCE
+              WEBSITE ADDRESS DETAILS
           ====================================================== */}
 
           <section className="panel investigation-section">
             <div className="section-heading">
               <div>
                 <div className="eyebrow">
-                  DOMAIN INTELLIGENCE
+                  WEBSITE DETAILS
                 </div>
 
                 <h2>
-                  Infrastructure indicators
+                  Details about this website
                 </h2>
               </div>
             </div>
@@ -1124,7 +1193,7 @@ export default function Detail() {
             <div className="intel-grid">
               <div className="intel-item">
                 <span>
-                  Hostname
+                  Website name
                 </span>
 
                 <strong>
@@ -1135,18 +1204,17 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  Scheme
+                  Secure connection
                 </span>
 
                 <strong>
-                  {domainIntel.scheme ??
-                    "—"}
+                  {lexical.uses_https ? "Yes" : "No"}
                 </strong>
               </div>
 
               <div className="intel-item">
                 <span>
-                  DNS addresses
+                  Server addresses
                 </span>
 
                 <strong>
@@ -1160,7 +1228,7 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  DNS count
+                  Number of server addresses
                 </span>
 
                 <strong>
@@ -1170,19 +1238,7 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  HTTPS
-                </span>
-
-                <strong>
-                  {lexical.uses_https
-                    ? "Yes"
-                    : "No"}
-                </strong>
-              </div>
-
-              <div className="intel-item">
-                <span>
-                  URL length
+                  Website address length
                 </span>
 
                 <strong>
@@ -1193,7 +1249,7 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  Hostname length
+                  Website name length
                 </span>
 
                 <strong>
@@ -1204,7 +1260,7 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  Subdomain count
+                  Extra address sections
                 </span>
 
                 <strong>
@@ -1215,7 +1271,7 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  Digit count
+                  Numbers in the address
                 </span>
 
                 <strong>
@@ -1226,7 +1282,7 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  Hyphen count
+                  Dashes in the address
                 </span>
 
                 <strong>
@@ -1237,7 +1293,7 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  Suspicious term hits
+                  Risky words found
                 </span>
 
                 <strong>
@@ -1248,13 +1304,11 @@ export default function Detail() {
 
               <div className="intel-item">
                 <span>
-                  Punycode
+                  Look-alike characters in address
                 </span>
 
                 <strong>
-                  {lexical.has_punycode
-                    ? "Detected"
-                    : "None"}
+                  {lexical.has_punycode ? "Yes" : "No"}
                 </strong>
               </div>
             </div>
@@ -1268,18 +1322,16 @@ export default function Detail() {
             <div className="section-heading">
               <div>
                 <div className="eyebrow">
-                  INFRASTRUCTURE INTELLIGENCE
+                  RELATED WEBSITES
                 </div>
 
                 <h2>
-                  Campaign relationships
+                  Other sites with shared details
                 </h2>
 
                 <p className="section-description">
-                  Related infrastructure is derived
-                  from the current graph snapshot.
-                  Linkage confidence is heuristic and
-                  does not prove common ownership.
+                  These links are estimates based on shared details. They do
+                  not prove that the websites belong to the same person.
                 </p>
               </div>
 
@@ -1287,21 +1339,20 @@ export default function Detail() {
                 href="/graph"
                 className="button"
               >
-                Open campaign graph →
+                See website connections →
               </Link>
             </div>
 
             {graphLoading ? (
               <div className="empty">
-                Loading infrastructure
-                relationships…
+                Loading website connections…
               </div>
             ) : (
               <>
                 <div className="infrastructure-summary">
                   <div className="infra-stat">
                     <span>
-                      GRAPH NODES
+                      ITEMS IN MAP
                     </span>
 
                     <strong>
@@ -1311,7 +1362,7 @@ export default function Detail() {
 
                   <div className="infra-stat">
                     <span>
-                      RELATIONSHIPS
+                      CONNECTIONS
                     </span>
 
                     <strong>
@@ -1321,7 +1372,7 @@ export default function Detail() {
 
                   <div className="infra-stat">
                     <span>
-                      RELATED CAMPAIGNS
+                      RELATED GROUPS
                     </span>
 
                     <strong>
@@ -1331,7 +1382,7 @@ export default function Detail() {
 
                   <div className="infra-stat">
                     <span>
-                      CURRENT HOST
+                      WEBSITE ADDRESS
                     </span>
 
                     <strong>
@@ -1345,7 +1396,7 @@ export default function Detail() {
                 0 ? (
                   <div className="related-infrastructure">
                     <div className="eyebrow">
-                      RELATED INFRASTRUCTURE
+                      RELATED ITEMS
                     </div>
 
                     <div className="infrastructure-node-grid">
@@ -1383,16 +1434,13 @@ export default function Detail() {
                     {relatedGraphNodes.length >
                       12 && (
                       <div className="muted-note">
-                        Showing the first 12
-                        related infrastructure
-                        nodes.
+                        Showing the first 12 related items.
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="muted-note">
-                    No direct infrastructure node
-                    was matched to hostname{" "}
+                    No related item was found for{" "}
                     <strong>
                       {hostname ||
                         "unknown"}
@@ -1438,14 +1486,7 @@ export default function Detail() {
                               <div className="campaign-header">
                                 <div>
                                   <div className="campaign-id">
-                                    {campaign.cluster_id ??
-                                      `CAMPAIGN-${String(
-                                        index +
-                                          1
-                                      ).padStart(
-                                        4,
-                                        "0"
-                                      )}`}
+                                    Group {index + 1}
                                   </div>
 
                                   <div className="campaign-size">
@@ -1454,8 +1495,7 @@ export default function Detail() {
                                         .members
                                         ?.length ??
                                       0}{" "}
-                                    infrastructure
-                                    nodes
+                                    connected items
                                   </div>
                                 </div>
 
@@ -1468,9 +1508,11 @@ export default function Detail() {
                                   </strong>
 
                                   <span>
-                                    {campaign.confidence_level ??
-                                      "unknown"}{" "}
-                                    confidence
+                                    {campaign.confidence_level === "high"
+                                      ? "Strong match"
+                                      : campaign.confidence_level === "medium"
+                                        ? "Possible match"
+                                        : "Weak match"}
                                   </span>
                                 </div>
                               </div>
@@ -1496,7 +1538,7 @@ export default function Detail() {
                                         }
                                         className="evidence-chip"
                                       >
-                                        {type}
+                                        {nodeDisplayType({ type })}
                                       </span>
                                     )
                                   )}
@@ -1507,7 +1549,7 @@ export default function Detail() {
                                 ?.length ? (
                                 <div className="campaign-evidence">
                                   <div className="eyebrow">
-                                    LINKAGE EVIDENCE
+                                    WHY THESE ARE CONNECTED
                                   </div>
 
                                   {campaign.evidence
@@ -1531,9 +1573,7 @@ export default function Detail() {
                                           </span>
 
                                           <span>
-                                            {
-                                              evidence
-                                            }
+                                            {connectionReasonLabel(evidence)}
                                           </span>
                                         </div>
                                       )
@@ -1543,8 +1583,7 @@ export default function Detail() {
 
                               <div className="campaign-footer">
                                 <span>
-                                  Internal
-                                  relationships:{" "}
+                                  Connections in this group:{" "}
                                   {campaign.internal_relationships ??
                                     0}
                                 </span>
@@ -1553,8 +1592,7 @@ export default function Detail() {
                                   href="/graph"
                                   className="stat-label"
                                 >
-                                  Investigate
-                                  campaign →
+                                  View connections →
                                 </Link>
                               </div>
                             </div>
@@ -1569,16 +1607,13 @@ export default function Detail() {
 
                       <div>
                         <strong>
-                          No linked campaign
+                          No related group found
                         </strong>
 
                         <p>
-                          This observation is not
-                          currently associated with
-                          a campaign cluster. More
-                          infrastructure observations
-                          may create a stronger
-                          relationship over time.
+                          We haven’t found enough shared details to connect
+                          this website to a group yet. More checks may reveal
+                          connections.
                         </p>
                       </div>
                     </div>
@@ -1589,25 +1624,25 @@ export default function Detail() {
           </section>
 
           {/* =====================================================
-              RAW EVIDENCE
+              MORE TECHNICAL DETAILS
           ====================================================== */}
 
           <section className="panel investigation-section">
             <div className="section-heading">
               <div>
                 <div className="eyebrow">
-                  RAW EVIDENCE
+                  MORE TECHNICAL DETAILS
                 </div>
 
                 <h2>
-                  Machine-readable evidence
+                  Extra information for technical users
                 </h2>
               </div>
             </div>
 
             <details className="raw-evidence">
               <summary>
-                View visual engine output
+                View page appearance data
               </summary>
 
               <pre>
@@ -1621,7 +1656,7 @@ export default function Detail() {
 
             <details className="raw-evidence">
               <summary>
-                View domain intelligence
+                View website address data
               </summary>
 
               <pre>
@@ -1635,7 +1670,7 @@ export default function Detail() {
 
             <details className="raw-evidence">
               <summary>
-                View behavioral telemetry
+                View page behavior data
               </summary>
 
               <pre>
@@ -1649,7 +1684,7 @@ export default function Detail() {
 
             <details className="raw-evidence">
               <summary>
-                View graph relationship snapshot
+                View connection map data
               </summary>
 
               <pre>

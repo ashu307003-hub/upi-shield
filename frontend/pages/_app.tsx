@@ -16,6 +16,20 @@ export type Analyst = {
   email: string;
   full_name: string;
   is_admin: boolean;
+  mobile_number: string;
+  account_type: "student" | "professional";
+  academic_session: string;
+  institution: string;
+  department: string;
+  course: string;
+  study_year: string;
+  has_student_id_document: boolean;
+  employer: string;
+  job_title: string;
+  employment_type: string;
+  employee_id: string;
+  is_verified: boolean;
+  created_at: string | null;
 };
 
 type AuthContextValue = {
@@ -54,6 +68,8 @@ export default function App({ Component, pageProps }: AppProps) {
   const [checkAttempt, setCheckAttempt] = useState(0);
   const router = useRouter();
   const isLoginPage = router.pathname === "/login";
+  const isPasswordResetPage = router.pathname === "/reset-password";
+  const isPublicAuthPage = isLoginPage || isPasswordResetPage;
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -95,7 +111,7 @@ export default function App({ Component, pageProps }: AppProps) {
         setUser(analyst);
         setAuthError("");
         setAuthStatus(analyst ? "authenticated" : "anonymous");
-        if (!analyst && !isLoginPage) {
+        if (!analyst && !isPublicAuthPage) {
           void router.replace({
             pathname: "/login",
             query: { next: router.asPath },
@@ -117,7 +133,7 @@ export default function App({ Component, pageProps }: AppProps) {
     return () => {
       active = false;
     };
-  }, [checkAttempt, isLoginPage, router]);
+  }, [checkAttempt, isLoginPage, isPublicAuthPage, router]);
 
   function updateUser(nextUser: Analyst | null) {
     setUser(nextUser);
@@ -140,18 +156,16 @@ export default function App({ Component, pageProps }: AppProps) {
       setAuthStatus("anonymous");
       await router.replace("/login");
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "Could not sign out"
-      );
+      window.alert("Could not sign out. Please try again.");
     }
   }
 
   if (!router.isReady || authStatus === "loading") {
-    return <LoadingScreen message="Checking your secure session…" />;
+    return <LoadingScreen message="Checking your sign-in…" />;
   }
 
   if (authStatus === "error") {
-    if (isLoginPage) {
+    if (isPublicAuthPage) {
       return (
         <AuthContext.Provider
           value={{
@@ -169,8 +183,8 @@ export default function App({ Component, pageProps }: AppProps) {
       <div className="auth-loading auth-loading-error">
         <div>
           <span className="brand-mark">U</span>
-          <h1>Sign-in service unavailable</h1>
-          <p>{authError}</p>
+          <h1>Can’t sign you in right now</h1>
+          <p>Refresh the page and try again. If this keeps happening, contact your administrator.</p>
           <button
             className="button primary"
             type="button"
@@ -187,7 +201,7 @@ export default function App({ Component, pageProps }: AppProps) {
   }
 
   if (authStatus === "anonymous" || !user) {
-    if (isLoginPage) {
+    if (isPublicAuthPage) {
       return (
         <AuthContext.Provider
           value={{
@@ -205,7 +219,22 @@ export default function App({ Component, pageProps }: AppProps) {
   }
 
   if (isLoginPage) {
-    return <LoadingScreen message="Opening your workspace…" />;
+    return <LoadingScreen message="Opening your account…" />;
+  }
+
+  if (isPasswordResetPage) {
+    return (
+      <AuthContext.Provider
+        value={{
+          user,
+          setUser: updateUser,
+          serviceError: "",
+          isAdmin: user.is_admin,
+        }}
+      >
+        <Component {...pageProps} />
+      </AuthContext.Provider>
+    );
   }
 
   const initials = user.email
@@ -229,12 +258,19 @@ export default function App({ Component, pageProps }: AppProps) {
         className={`app-shell ${sidebarOpen ? "" : "sidebar-collapsed"}`}
       >
         <aside className="sidebar" aria-label="Primary navigation">
-          <Link href="/" className="brand">
+          <button
+            className="brand"
+            type="button"
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            aria-expanded={sidebarOpen}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            onClick={() => setSidebarOpen((open) => !open)}
+          >
             <span className="brand-mark">U</span>
             <span>
               UPI <strong>Shield</strong>
             </span>
-          </Link>
+          </button>
           <button
             className="sidebar-toggle"
             type="button"
@@ -244,21 +280,28 @@ export default function App({ Component, pageProps }: AppProps) {
           >
             {sidebarOpen ? "‹" : "›"}
           </button>
-          <div className="workspace-label">SECURITY OPERATIONS</div>
+          <div className="workspace-label">MAIN MENU</div>
           <nav className="nav-list">
             <Link
               href="/"
               className={`nav-item ${router.pathname === "/" ? "active" : ""}`}
             >
               <span>◉</span>
-              <span>Triage queue</span>
+              <span>Website checks</span>
             </Link>
             <Link
               href="/graph"
               className={`nav-item ${router.pathname === "/graph" ? "active" : ""}`}
             >
               <span>⌘</span>
-              <span>Campaign graph</span>
+              <span>Website connections</span>
+            </Link>
+            <Link
+              href="/profile"
+              className={`nav-item ${router.pathname === "/profile" ? "active" : ""}`}
+            >
+              <span>◎</span>
+              <span>My profile</span>
             </Link>
             {user.is_admin && (
               <Link
@@ -266,28 +309,31 @@ export default function App({ Component, pageProps }: AppProps) {
                 className={`nav-item ${router.pathname === "/admin" ? "active" : ""}`}
               >
                 <span>▦</span>
-                <span>Admin overview</span>
+                <span>Admin tools</span>
               </Link>
             )}
           </nav>
           <div className="sidebar-bottom">
             <div className="system-status">
-              <span className="status-dot" /> Systems operational
+              <span className="status-dot" /> All systems ready
             </div>
             <div className="user-card">
               <div className="avatar">{initials || "A"}</div>
               <div className="user-identity">
-                <strong>{user.email}</strong>
-                <small>Analyst account</small>
+                <strong>{user.full_name || user.email}</strong>
+                <small>
+                  {user.account_type === "student"
+                    ? "Student account"
+                    : "Working professional"}
+                </small>
               </div>
-              <button
-                className="logout-button"
-                type="button"
-                onClick={signOut}
-                aria-label="Sign out"
-                title="Sign out"
-              >
-                ↗
+            </div>
+            <div className="account-actions">
+              <button type="button" onClick={signOut}>
+                Sign out
+              </button>
+              <button type="button" onClick={signOut}>
+                Switch account
               </button>
             </div>
           </div>

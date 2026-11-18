@@ -1,0 +1,30 @@
+{
+  "name": "upi-shield-mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "expo": "~58.0.26",
+    "expo-camera": "~58.0.14",
+    "expo-linking": "~58.0.17",
+    "expo-secure-store": "~58.0.3",
+    "expo-share-intent": "^9.0.0",
+    "expo-status-bar": "~58.0.5",
+    "expo-system-ui": "~58.0.7",
+    "react": "19.3.0",
+    "react-native": "0.88.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "prebuild:android": "expo prebuild --platform android",
+    "build:android:debug": "expo prebuild --platform android && cd android && gradlew.bat assembleDebug -PreactNativeArchitectures=armeabi-v7a,arm64-v8a",
+    "build:android:release": "expo prebuild --platform android && cd android && gradlew.bat assembleRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "private": true
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
+import { connectionReasonLabel } from "../lib/presentation";
 
 const API =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -49,6 +50,33 @@ type ClusterResponse = {
   total_nodes: number;
   total_links: number;
 };
+
+function confidenceLabel(level: string) {
+  switch (level.toLowerCase()) {
+    case "high":
+      return "Strong match";
+    case "medium":
+      return "Possible match";
+    case "low":
+      return "Weak match";
+    default:
+      return "Not enough information";
+  }
+}
+
+function nodeTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    domain: "Website",
+    brand: "Brand",
+    ip: "Server address",
+    certificate: "Security certificate",
+    cert: "Security certificate",
+    upi: "Payment ID",
+    asn: "Hosting provider",
+    kit: "Shared technical identifier",
+  };
+  return labels[type.toLowerCase()] ?? type.replaceAll("_", " ");
+}
 
 export default function Graph() {
   const ref = useRef<SVGSVGElement>(null);
@@ -136,7 +164,7 @@ export default function Graph() {
       ? graph.nodes
       : [
           {
-            id: "No observations yet",
+            id: "No checks yet",
             type: "Info",
           } as Node,
         ];
@@ -418,16 +446,14 @@ export default function Graph() {
       <header className="page-header">
         <div>
           <div className="eyebrow">
-            NETWORK INTELLIGENCE / NEO4J
+            WEBSITE CONNECTIONS
           </div>
 
-          <h1>Campaign graph</h1>
+          <h1>Connected websites</h1>
 
           <p>
-            Domains, brands, IPs,
-            certificates and payment
-            identities can be connected
-            as observations accumulate.
+            This map shows websites and brands that share details. A connection
+            is a clue, not proof that the sites belong to the same person.
           </p>
         </div>
 
@@ -435,7 +461,7 @@ export default function Graph() {
           href="/"
           className="button"
         >
-          ← Back to triage
+          ← Back to website checks
         </Link>
       </header>
 
@@ -449,7 +475,7 @@ export default function Graph() {
         <div className="toolbar">
           <div>
             <h2>
-              Campaign clusters
+              Related groups
             </h2>
 
             <p
@@ -459,9 +485,7 @@ export default function Graph() {
                 color: "#66756c",
               }}
             >
-              Graph-based infrastructure
-              communities detected from
-              the current observations.
+              Websites and brands grouped by details they have in common.
             </p>
           </div>
 
@@ -473,32 +497,29 @@ export default function Graph() {
             }}
           >
             <strong>
-              {clusters.length} campaign
+              {clusters.length} group
               {clusters.length === 1
                 ? ""
                 : "s"}
             </strong>
 
             <span>
-              {graph.nodes.length} nodes
+              {graph.nodes.length} items
             </span>
 
             <span>
-              {graph.links.length}{" "}
-              relationships
+              {graph.links.length} connections
             </span>
           </div>
         </div>
 
         {loadingClusters ? (
           <div className="graph-help">
-            Loading campaign
-            clusters…
+            Loading groups…
           </div>
         ) : clusters.length === 0 ? (
           <div className="graph-help">
-            No campaign clusters are
-            available yet.
+            No connected groups found yet.
           </div>
         ) : (
           <div
@@ -509,7 +530,7 @@ export default function Graph() {
               marginTop: 16,
             }}
           >
-            {clusters.map((cluster) => {
+            {clusters.map((cluster, index) => {
               const active =
                 selectedCluster ===
                 cluster.cluster_id;
@@ -534,9 +555,9 @@ export default function Graph() {
                         : undefined,
                     }}
                   >
-                    {cluster.cluster_id}
+                    Group {index + 1}
                     {" · "}
-                    {cluster.size} nodes
+                    {cluster.size} items
                   </button>
 
                   {active && (
@@ -564,7 +585,7 @@ export default function Graph() {
                       >
                         <div>
                           <strong>
-                            Campaign confidence
+                            Match estimate
                           </strong>
 
                           <div
@@ -600,7 +621,7 @@ export default function Graph() {
                           }}
                         >
                           {
-                            cluster.confidence_level
+                            confidenceLabel(cluster.confidence_level)
                           }
                         </span>
                       </div>
@@ -613,7 +634,7 @@ export default function Graph() {
                           marginBottom: 8,
                         }}
                       >
-                        Campaign evidence
+                        Why these are connected
                       </div>
 
                       <div
@@ -632,7 +653,7 @@ export default function Graph() {
                                   "#426951",
                               }}
                             >
-                              ✓ {item}
+                              ✓ {connectionReasonLabel(item)}
                             </div>
                           )
                         )}
@@ -654,15 +675,14 @@ export default function Graph() {
                         }}
                       >
                         <span>
-                          Nodes:{" "}
+                          Items:{" "}
                           <strong>
                             {cluster.size}
                           </strong>
                         </span>
 
                         <span>
-                          Internal
-                          relationships:{" "}
+                          Connections in this group:{" "}
                           <strong>
                             {
                               cluster.internal_relationships
@@ -671,14 +691,9 @@ export default function Graph() {
                         </span>
 
                         <span>
-                          Infrastructure
-                          types:{" "}
+                          Types of items:{" "}
                           <strong>
-                            {
-                              cluster
-                                .node_types
-                                .length
-                            }
+                            {cluster.node_types.map(nodeTypeLabel).join(", ")}
                           </strong>
                         </span>
                       </div>
@@ -709,8 +724,7 @@ export default function Graph() {
         <div className="toolbar">
           <div>
             <h2>
-              Infrastructure
-              relationship map
+              Website connection map
             </h2>
 
             {selectedCluster && (
@@ -720,8 +734,7 @@ export default function Graph() {
                   color: "#168d49",
                 }}
               >
-                Highlighting{" "}
-                {selectedCluster}
+                Showing the selected group
               </p>
             )}
           </div>
@@ -729,6 +742,7 @@ export default function Graph() {
           <div className="graph-actions">
             <button
               className="button"
+              aria-label="Zoom in"
               onClick={() =>
                 zoomBy(1.3)
               }
@@ -738,6 +752,7 @@ export default function Graph() {
 
             <button
               className="button"
+              aria-label="Zoom out"
               onClick={() =>
                 zoomBy(0.75)
               }
@@ -747,6 +762,7 @@ export default function Graph() {
 
             <button
               className="button"
+              aria-label="Reset map view"
               onClick={() => {
                 if (
                   ref.current &&
@@ -763,7 +779,7 @@ export default function Graph() {
                 }
               }}
             >
-              Reset
+              Reset view
             </button>
           </div>
         </div>
@@ -772,14 +788,12 @@ export default function Graph() {
           ref={ref}
           viewBox="0 0 780 480"
           role="img"
-          aria-label="Infrastructure graph"
+          aria-label="Map of websites and their connections"
         />
 
         <div className="graph-help">
-          Drag nodes and use +/− to zoom.
-          Select a campaign above to
-          highlight its infrastructure
-          cluster.
+          Drag the dots to explore the map. Use + or − to zoom. Choose a group
+          above to highlight its connections.
         </div>
       </section>
     </>

@@ -91,18 +91,36 @@ select {
 
 .sidebar-collapsed .sidebar {
   width: 0;
+  z-index: 10;
   padding-left: 0;
   padding-right: 0;
   overflow: visible;
 }
 
-.sidebar-collapsed .sidebar > *:not(.sidebar-toggle) {
+.sidebar-collapsed .sidebar > *:not(.sidebar-toggle):not(.brand) {
   visibility: hidden;
   opacity: 0;
 }
 
+.sidebar-collapsed .sidebar .brand {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 3px 12px #17452a18;
+}
+
+.sidebar-collapsed .sidebar .brand > span:last-child {
+  display: inline;
+}
+
 .sidebar-collapsed .sidebar-toggle {
-  right: -13px;
+  display: none;
 }
 
 .brand {
@@ -112,6 +130,17 @@ select {
   font-size: 18px;
   letter-spacing: -0.5px;
   margin: 0 10px 58px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 4px;
 }
 
 .brand strong {
@@ -268,6 +297,49 @@ select {
 .header-actions {
   display: flex;
   gap: 10px;
+}
+
+.report-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.report-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.report-select .select {
+  min-width: 180px;
+}
+
+.report-actions .button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.report-hint,
+.report-message {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+}
+
+.report-hint {
+  color: var(--muted);
+}
+
+.report-message.success {
+  color: var(--green);
+}
+
+.report-message.error {
+  color: var(--red);
 }
 
 .button {
@@ -3360,5 +3432,147 @@ select {
 
   .login-legal {
     font-size: 8px;
+  }
+}
+
+.account-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.account-actions button {
+  padding: 8px 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.account-actions button:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.account-type-select {
+  width: 100%;
+  min-height: 47px;
+  margin-bottom: 9px;
+  padding: 0 13px;
+  border: 1px solid #dce6dd;
+  border-radius: 9px;
+  color: #193829;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.account-type-select:focus {
+  border-color: #64a978;
+  outline: 0;
+  box-shadow: 0 0 0 3px #67a9781c;
+}
+
+.login-file-input-wrap {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.login-file-input-wrap input {
+  height: auto;
+  font-size: 10px;
+}
+
+.profile-page {
+  max-width: 1120px;
+}
+
+.profile-type-badge {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--green);
+  background: #eff8f1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.profile-section {
+  padding: 22px;
+}
+
+.profile-section h2,
+.profile-document h2 {
+  margin: 0 0 18px;
+  font-size: 15px;
+}
+
+.profile-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px 20px;
+  margin: 0;
+}
+
+.profile-detail {
+  min-width: 0;
+}
+
+.profile-detail dt {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.profile-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-document {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 16px;
+  padding: 22px;
+}
+
+.profile-document h2 {
+  margin-bottom: 6px;
+}
+
+.profile-document p,
+.profile-muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .profile-details {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-document {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
