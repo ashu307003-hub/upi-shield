@@ -16,6 +16,7 @@ from .db import (
     AnalystSession,
     AnalystUser,
     EmailVerificationToken,
+    PasswordResetToken,
     session_factory,
 )
 
@@ -23,6 +24,7 @@ from .db import (
 SESSION_COOKIE_NAME = "upi_shield_session"
 SESSION_TTL = timedelta(days=7)
 VERIFICATION_TTL = timedelta(hours=24)
+PASSWORD_RESET_TTL = timedelta(minutes=30)
 PASSWORD_SCRYPT_N = 2**14
 _last_activity_cleanup = 0.0
 _activity_cleanup_lock = asyncio.Lock()
@@ -92,12 +94,35 @@ async def create_analyst(
     email: str,
     mobile_number: str,
     password: str,
+    *,
+    account_type: str,
+    academic_session: str | None = None,
+    institution: str | None = None,
+    department: str | None = None,
+    course: str | None = None,
+    study_year: str | None = None,
+    student_id_document: str | None = None,
+    employer: str | None = None,
+    job_title: str | None = None,
+    employment_type: str | None = None,
+    employee_id: str | None = None,
 ) -> AnalystUser:
     async with session_factory() as session:
         user = AnalystUser(
             email=email,
             full_name=full_name,
             mobile_number=mobile_number,
+            account_type=account_type,
+            academic_session=academic_session or "",
+            institution=institution or "",
+            department=department or "",
+            course=course or "",
+            study_year=study_year or "",
+            student_id_document=student_id_document,
+            employer=employer or "",
+            job_title=job_title or "",
+            employment_type=employment_type or "",
+            employee_id=employee_id or "",
             password_hash=await asyncio.to_thread(hash_password, password),
             is_verified=False,
         )
@@ -183,6 +208,99 @@ async def verify_analyst_email(token: str) -> AnalystUser | None:
         )
         await session.commit()
         return user
+
+
+async def find_analyst_by_email(email: str) -> AnalystUser | None:
+    async with session_factory() as session:
+        result = await session.execute(
+            select(AnalystUser).where(AnalystUser.email == email)
+        )
+        return result.scalar_one_or_none()
+
+
+async def issue_password_reset_token(
+    user: AnalystUser,
+    minimum_interval_seconds: int = 0,
+) -> str | None:
+    token = secrets.token_urlsafe(40)
+    now = datetime.now(timezone.utc)
+    async with session_factory() as session:
+        await session.execute(
+            select(AnalystUser.id)
+            .where(AnalystUser.id == user.id)
+            .with_for_update()
+        )
+        result = await session.execute(
+            select(PasswordResetToken).where(
+                PasswordResetToken.user_id == user.id
+            )
+        )
+        existing = result.scalar_one_or_none()
+        issued_at = existing.issued_at if existing is not None else None
+        if issued_at is not None and issued_at.tzinfo is None:
+            issued_at = issued_at.replace(tzinfo=timezone.utc)
+        if (
+            issued_at is not None
+            and minimum_interval_seconds
+            and (now - issued_at).total_seconds() < minimum_interval_seconds
+        ):
+            return None
+
+        await session.execute(
+            delete(PasswordResetToken).where(
+                PasswordResetToken.user_id == user.id
+            )
+        )
+        session.add(
+            PasswordResetToken(
+                token_hash=_hash_session_token(token),
+                user_id=user.id,
+                expires_at=now + PASSWORD_RESET_TTL,
+            )
+        )
+        await session.commit()
+    return token
+
+
+async def reset_analyst_password(token: str, password: str) -> bool:
+    now = datetime.now(timezone.utc)
+    async with session_factory() as session:
+        result = await session.execute(
+            select(PasswordResetToken)
+            .where(
+                PasswordResetToken.token_hash == _hash_session_token(token),
+                PasswordResetToken.expires_at > now,
+            )
+            .with_for_update()
+        )
+        reset_token = result.scalar_one_or_none()
+        if reset_token is None:
+            return False
+
+        user = await session.get(AnalystUser, reset_token.user_id)
+        if user is None:
+            await session.delete(reset_token)
+            await session.commit()
+            return False
+
+        user.password_hash = await asyncio.to_thread(hash_password, password)
+        await session.execute(
+            delete(PasswordResetToken).where(
+                PasswordResetToken.user_id == user.id
+            )
+        )
+        await session.execute(
+            delete(AnalystSession).where(AnalystSession.user_id == user.id)
+        )
+        session.add(
+            ActivityEvent(
+                user_id=user.id,
+                event_type="password_reset",
+                event_metadata={},
+            )
+        )
+        await session.commit()
+    return True
 
 
 async def authenticate_analyst(email: str, password: str) -> AnalystUser | None:

@@ -2,28 +2,61 @@ import Head from "next/head";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { useAuth } from "./_app";
+import { Analyst, useAuth } from "./_app";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type AuthResponse = {
-  user: {
-    id: number;
-    email: string;
-    full_name: string;
-    is_admin: boolean;
-  };
+  user: Analyst;
 };
+
+function formatApiDetail(detail: unknown): string | null {
+  if (typeof detail === "string") return detail;
+  if (!Array.isArray(detail)) return null;
+
+  const messages = detail.flatMap((item: unknown) => {
+    if (typeof item !== "object" || item === null || !("msg" in item)) {
+      return [];
+    }
+    const message = item.msg;
+    if (typeof message !== "string") return [];
+    const location =
+      "loc" in item && Array.isArray(item.loc)
+        ? item.loc
+            .filter((part: unknown): part is string => typeof part === "string")
+            .join(".")
+        : "";
+    return [location ? `${location}: ${message}` : message];
+  });
+  return messages.length > 0 ? messages.join("; ") : null;
+}
 
 export default function Login() {
   const router = useRouter();
   const { setUser, serviceError } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
+  const [resetRequestSent, setResetRequestSent] = useState(false);
   const [verificationPending, setVerificationPending] = useState(false);
   const [verificationComplete, setVerificationComplete] = useState(false);
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [fullName, setFullName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
+  const [accountType, setAccountType] = useState<
+    "" | "student" | "professional"
+  >("");
+  const [studentIdCard, setStudentIdCard] = useState<File | null>(null);
+  const [profileDetails, setProfileDetails] = useState({
+    academic_session: "",
+    institution: "",
+    department: "",
+    course: "",
+    study_year: "",
+    employer: "",
+    job_title: "",
+    employment_type: "",
+    employee_id: "",
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -81,30 +114,69 @@ export default function Login() {
     event.preventDefault();
     setError("");
 
+    if (!accountType) {
+      setError("Select whether this is a student or professional account.");
+      return;
+    }
     if (isRegistering && password !== confirmPassword) {
       setError("Your passwords do not match.");
+      return;
+    }
+    if (isRegistering && accountType === "student" && !studentIdCard) {
+      setError("Upload your student ID card.");
+      return;
+    }
+    if (
+      isRegistering &&
+      studentIdCard &&
+      studentIdCard.size > 5 * 1024 * 1024
+    ) {
+      setError("Student ID cards must be 5 MB or smaller.");
       return;
     }
 
     setLoading(true);
     try {
+      const options: RequestInit = {
+        method: "POST",
+        credentials: "include",
+      };
+      if (isRegistering) {
+        const formData = new FormData();
+        formData.append("full_name", fullName);
+        formData.append("mobile_number", mobileNumber);
+        formData.append("email", email);
+        formData.append("password", password);
+        formData.append("account_type", accountType);
+        const fields: (keyof typeof profileDetails)[] =
+          accountType === "student"
+            ? [
+                "academic_session",
+                "institution",
+                "department",
+                "course",
+                "study_year",
+              ]
+            : [
+                "employer",
+                "department",
+                "job_title",
+                "employment_type",
+                "employee_id",
+              ];
+        fields.forEach((field) =>
+          formData.append(field, profileDetails[field])
+        );
+        if (studentIdCard) formData.append("student_id_card", studentIdCard);
+        options.body = formData;
+      } else {
+        options.headers = { "Content-Type": "application/json" };
+        options.body = JSON.stringify({ account_type: accountType, email, password });
+      }
+
       const response = await fetch(
         `${API}/auth/${isRegistering ? "register" : "login"}`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            isRegistering
-              ? {
-                  full_name: fullName,
-                  mobile_number: mobileNumber,
-                  email,
-                  password,
-                }
-              : { email, password }
-          ),
-        }
+        options
       );
       const payload = await response.json();
       if (!response.ok) {
@@ -126,9 +198,8 @@ export default function Login() {
           );
         }
         throw new Error(
-          typeof payload.detail === "string"
-            ? payload.detail
-            : `Could not ${isRegistering ? "create account" : "sign in"} (${response.status})`
+          formatApiDetail(payload.detail) ??
+            `Could not ${isRegistering ? "create account" : "sign in"} (${response.status})`
         );
       }
 
@@ -186,13 +257,45 @@ export default function Login() {
     }
   }
 
+  async function requestPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setResetRequestSent(false);
+    setLoading(true);
+    try {
+      const response = await fetch(`${API}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          response.status === 404
+            ? "Password reset is not available on the configured API yet. Update the backend deployment and try again."
+            : formatApiDetail(payload.detail) ??
+                `Password reset request failed (${response.status})`
+        );
+      }
+      setResetRequestSent(true);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Could not request a password reset."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (verificationLoading) {
     return (
       <main className="verification-message">
         <div className="verification-card">
           <span className="brand-mark">U</span>
           <h1>Confirming your email…</h1>
-          <p>We’re activating your analyst account.</p>
+          <p>We’re setting up your account.</p>
         </div>
       </main>
     );
@@ -207,11 +310,11 @@ export default function Login() {
         <main className="verification-message">
           <div className="verification-card">
             <span className="verification-icon" aria-hidden="true">✉</span>
-            <div className="login-card-kicker">ONE LAST STEP</div>
-            <h1>Check your inbox</h1>
+            <div className="login-card-kicker">ALMOST DONE</div>
+            <h1>Confirm your email</h1>
             <p>
-              We sent a confirmation link to <strong>{email}</strong>. Confirm
-              your address before signing in.
+              We sent a link to <strong>{email}</strong>. Open it to confirm
+              your email before signing in.
             </p>
             {error && <div className="login-error" role="alert">{error}</div>}
             <button
@@ -242,10 +345,17 @@ export default function Login() {
   return (
     <>
       <Head>
-        <title>{isRegistering ? "Create account" : "Sign in"} · UPI Shield</title>
+        <title>
+          {isRegistering
+            ? "Create account"
+            : isRequestingReset
+              ? "Forgot password"
+              : "Sign in"}{" "}
+          · UPI Shield
+        </title>
         <meta
           name="description"
-          content="Sign in to the UPI Shield analyst workspace."
+          content="Sign in to your UPI Shield account."
         />
       </Head>
       <main className="login-page">
@@ -260,16 +370,16 @@ export default function Login() {
           <div className="showcase-copy">
             <div className="showcase-eyebrow">
               <span className="showcase-pulse" />
-              ANALYST SECURITY WORKSPACE
+              A SAFER WAY TO CHECK WEBSITES
             </div>
             <h1>
-              See the signal.
+              Check before you trust.
               <br />
-              <span>Protect every payment.</span>
+              <span>Spot warning signs early.</span>
             </h1>
             <p>
-              Investigate suspicious payment experiences with clear evidence,
-              connected infrastructure, and explainable risk signals.
+              Check websites for warning signs, see what looks unusual, and
+              review the reasons in plain language.
             </p>
           </div>
 
@@ -294,24 +404,24 @@ export default function Login() {
                   />
                 </svg>
               </span>
-              <span className="orbit-label">THREAT INTELLIGENCE</span>
+              <span className="orbit-label">WEBSITE CHECKS</span>
             </div>
             <span className="orbit-node orbit-node-a">UPI</span>
-            <span className="orbit-node orbit-node-b">DNS</span>
+            <span className="orbit-node orbit-node-b">LINK</span>
             <span className="orbit-node orbit-node-c">WEB</span>
-            <span className="orbit-node orbit-node-d">TLS</span>
+            <span className="orbit-node orbit-node-d">SAFE</span>
             <div className="signal-card">
               <span className="signal-card-icon">↗</span>
               <span>
-                <strong>Risk signals</strong>
-                <small>Connected. Explained.</small>
+                <strong>Website checks</strong>
+                <small>Clear results. Simple reasons.</small>
               </span>
               <span className="signal-card-status" />
             </div>
           </div>
 
           <div className="showcase-footer">
-            <span>DEFENSIVE ANALYSIS · AUTHORIZED USE ONLY</span>
+            <span>            CHECK ONLY WEBSITES YOU HAVE PERMISSION TO TEST</span>
             <span>UPI SHIELD <i /> 01.0</span>
           </div>
         </section>
@@ -339,7 +449,7 @@ export default function Login() {
                   strokeWidth="1.4"
                 />
               </svg>
-              SECURE WORKSPACE
+              SECURE ACCOUNT
             </span>
           </div>
 
@@ -350,16 +460,82 @@ export default function Login() {
               </div>
             )}
             <div className="login-card-kicker">
-              {isRegistering ? "GET STARTED" : "WELCOME BACK"}
+              {isRegistering
+                ? "CREATE YOUR ACCOUNT"
+                : isRequestingReset
+                  ? "ACCOUNT RECOVERY"
+                  : "WELCOME BACK"}
             </div>
-            <h2>{isRegistering ? "Create your account" : "Sign in to Shield"}</h2>
+            <h2>
+              {isRegistering
+                ? "Create your account"
+                : isRequestingReset
+                  ? "Reset your password"
+                  : "Sign in"}
+            </h2>
             <p className="login-intro">
               {isRegistering
-                ? "Set up your analyst access to start investigating."
-                : "Your intelligence workspace is ready when you are."}
+                ? "Tell us whether you are a student or a working professional."
+                : isRequestingReset
+                  ? "Enter the email address on your account. If it exists, we’ll send a one-time reset link."
+                  : "Choose the account type you used when you signed up."}
             </p>
 
+            {isRequestingReset ? (
+              <form className="login-form" onSubmit={requestPasswordReset}>
+                <label htmlFor="reset-email">Email address</label>
+                <div className="login-input-wrap">
+                  <input
+                    id="reset-email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    maxLength={254}
+                    placeholder="you@organization.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </div>
+                {resetRequestSent && (
+                  <div className="verification-success" role="status">
+                    If an account exists for that email, a reset link will be
+                    sent. Check your inbox and spam folder.
+                  </div>
+                )}
+                {error && (
+                  <div className="login-error" role="alert">
+                    {error}
+                  </div>
+                )}
+                <button
+                  className="login-submit"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? "Sending…" : "Send reset link"}
+                  {!loading && <span aria-hidden="true">→</span>}
+                </button>
+              </form>
+            ) : (
             <form className="login-form" onSubmit={submit}>
+              <label htmlFor="account-type">Who is this account for?</label>
+              <select
+                id="account-type"
+                className="account-type-select"
+                required
+                value={accountType}
+                onChange={(event) => {
+                  setAccountType(event.target.value as typeof accountType);
+                  setStudentIdCard(null);
+                }}
+              >
+                <option value="" disabled>
+                  Choose one
+                </option>
+                <option value="student">Student</option>
+                <option value="professional">Working professional</option>
+              </select>
+
               {isRegistering && (
                 <>
                   <label htmlFor="analyst-name">Full name</label>
@@ -395,9 +571,194 @@ export default function Login() {
                   <p className="password-hint">
                     Include your country code, for example +91.
                   </p>
+
+                  {accountType === "student" && (
+                    <>
+                      <label htmlFor="institution">School, college, or university</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="institution"
+                          required
+                          maxLength={160}
+                          value={profileDetails.institution}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              institution: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="academic-session">School year or session</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="academic-session"
+                          required
+                          maxLength={40}
+                          placeholder="e.g. 2026–2027"
+                          value={profileDetails.academic_session}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              academic_session: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="student-department">Department or field of study</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="student-department"
+                          required
+                          maxLength={120}
+                          value={profileDetails.department}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              department: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="course">Course or program</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="course"
+                          required
+                          maxLength={160}
+                          value={profileDetails.course}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              course: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="study-year">Current year of study</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="study-year"
+                          required
+                          maxLength={40}
+                          placeholder="e.g. 2nd year"
+                          value={profileDetails.study_year}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              study_year: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="student-id-card">Upload your student ID card</label>
+                      <div className="login-input-wrap login-file-input-wrap">
+                        <input
+                          id="student-id-card"
+                          type="file"
+                          accept="image/png,image/jpeg,application/pdf"
+                          required
+                          onChange={(event) =>
+                            setStudentIdCard(event.target.files?.[0] ?? null)
+                          }
+                        />
+                      </div>
+                      <p className="password-hint">
+                        Use a PNG, JPEG, or PDF file up to 5 MB. Only you can
+                        view this file after signing in.
+                      </p>
+                    </>
+                  )}
+
+                  {accountType === "professional" && (
+                    <>
+                      <label htmlFor="employer">Company or employer</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="employer"
+                          required
+                          maxLength={160}
+                          value={profileDetails.employer}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              employer: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="professional-department">Department or team</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="professional-department"
+                          required
+                          maxLength={120}
+                          value={profileDetails.department}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              department: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="job-title">Job title</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="job-title"
+                          required
+                          maxLength={120}
+                          value={profileDetails.job_title}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              job_title: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <label htmlFor="employment-type">Work arrangement</label>
+                      <select
+                        id="employment-type"
+                        className="account-type-select"
+                        required
+                        value={profileDetails.employment_type}
+                        onChange={(event) =>
+                          setProfileDetails((details) => ({
+                            ...details,
+                            employment_type: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="" disabled>
+                          Choose one
+                        </option>
+                        <option>Full-time</option>
+                        <option>Part-time</option>
+                        <option>Contract</option>
+                        <option>Internship</option>
+                        <option>Self-employed</option>
+                      </select>
+                      <label htmlFor="employee-id">Employee or staff ID</label>
+                      <div className="login-input-wrap">
+                        <input
+                          id="employee-id"
+                          required
+                          maxLength={80}
+                          value={profileDetails.employee_id}
+                          onChange={(event) =>
+                            setProfileDetails((details) => ({
+                              ...details,
+                              employee_id: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
-              <label htmlFor="analyst-email">Work email</label>
+              <label htmlFor="analyst-email">Email address</label>
               <div className="login-input-wrap">
                 <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <rect
@@ -431,7 +792,7 @@ export default function Login() {
               <div className="login-password-heading">
                 <label htmlFor="analyst-password">Password</label>
                 {!isRegistering && (
-                  <span className="password-note">MIN. 12 CHARACTERS</span>
+                  <span className="password-note">AT LEAST 12 CHARACTERS</span>
                 )}
               </div>
               <div className="login-input-wrap">
@@ -507,7 +868,7 @@ export default function Login() {
                     />
                   </div>
                   <p className="password-hint">
-                    Use at least 12 characters for a stronger password.
+                    Use 12 or more characters to help keep your account safe.
                   </p>
                 </>
               )}
@@ -515,8 +876,8 @@ export default function Login() {
               {serviceError && (
                 <div className="login-error" role="status">
                   <span aria-hidden="true">!</span>
-                  Sign-in service is unavailable. Start the backend and
-                  database, then retry. {serviceError}
+                  We can’t check your sign-in right now. Please try again in a
+                  moment.
                 </div>
               )}
 
@@ -549,33 +910,61 @@ export default function Login() {
                     ? "Creating account…"
                     : "Signing in…"
                   : isRegistering
-                    ? "Create analyst account"
-                    : "Sign in to workspace"}
+                    ? "Create account"
+                    : "Sign in"}
                 {!loading && <span aria-hidden="true">→</span>}
               </button>
             </form>
+            )}
 
             <div className="login-switch">
-              {isRegistering
-                ? "Already have analyst access?"
-                : "New to the workspace?"}
+              {isRequestingReset
+                ? "Remembered your password?"
+                : isRegistering
+                  ? "Already have an account?"
+                  : "New here?"}
               <button
                 type="button"
                 onClick={() => {
                   setError("");
-                  setIsRegistering((registering) => !registering);
+                  if (isRequestingReset) {
+                    setIsRequestingReset(false);
+                    setResetRequestSent(false);
+                    setIsRegistering(false);
+                  } else {
+                    setIsRegistering((registering) => !registering);
+                  }
                 }}
               >
-                {isRegistering ? "Sign in" : "Create an account"}
+                {isRequestingReset
+                  ? "Back to sign in"
+                  : isRegistering
+                    ? "Sign in"
+                    : "Create an account"}
               </button>
             </div>
+            {!isRegistering && !isRequestingReset && (
+              <div className="login-switch">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setResetRequestSent(false);
+                    setIsRegistering(false);
+                    setIsRequestingReset(true);
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="login-legal">
             <span>© 2026 UPI Shield</span>
             <span>
               <span className="legal-dot" />
-              Authorized analyst access
+              Secure access to your account
             </span>
           </div>
         </section>

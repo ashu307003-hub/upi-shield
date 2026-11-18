@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     admin_api_key: str = ""
     admin_emails: str = ""
     frontend_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    browser_extension_origins: str = ""
     activity_retention_days: int = Field(default=180, gt=0)
     crawl_allowlist: str = "127.0.0.1,localhost"
     phishing_threshold: float = 0.6
@@ -27,6 +28,14 @@ class Settings(BaseSettings):
     max_upload_mb: int = 8
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def use_asyncpg_driver(cls, value: str) -> str:
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return f"postgresql+asyncpg://{value[len(prefix):]}"
+        return value
 
 
 @lru_cache

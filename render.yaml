@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: upi-shield-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: upi-shield-db
+          property: connectionString
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: BROWSER_EXTENSION_ORIGINS
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_STARTTLS
+        value: "true"
+      - key: SMTP_USE_SSL
+        value: "false"
+      - key: REPORT_FROM_EMAIL
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: CRAWL_ALLOWLIST
+        value: 127.0.0.1,localhost
+
+databases:
+  - name: upi-shield-db
+    plan: free
+    databaseName: upi_shield
+    user: upi_shield
